@@ -267,3 +267,6 @@ html, body, .stApp { color: var(--desk-ink); background: var(--desk-canvas); }
 [data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(5)::before{content:"▤";}
 [data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(7)::before{content:"⌕";}
 @media(max-width:800px){[data-testid="stMain"] [data-testid="stColumn"]{min-width:min(100%,320px);}}
+
+.live-clock{display:flex;flex-direction:column;padding:20px 24px;margin:10px 0 16px;border:1px solid #cce7e1;border-radius:12px;background:#eef8f5;gap:5px;}
+.live-clock span{font-size:10px;font-weight:750;letter-spacing:.13em;color:#148d85;}.live-clock strong{font-size:32px;font-variant-numeric:tabular-nums;color:#112039;}.live-clock small{font-size:12px;color:#5e7c80;}

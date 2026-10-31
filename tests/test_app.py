@@ -115,6 +115,28 @@ class AppWorkflowTests(unittest.TestCase):
         mode_widget().set_value('Meeting brief').run(timeout=30)
         self.assertFalse(any(w.label=='Edit your draft' for w in self.app.text_area))
 
+    def test_live_meeting_notes_finish_and_prepare_review(self):
+        self.page('Live meeting')
+        next(w for w in self.app.text_input if w.label=='New meeting title').set_value('Fictional live sync')
+        self.button('Create live meeting').click().run(timeout=30)
+        self.assert_no_exception()
+        notes='Maya: Decision: launch date is 2026-11-06.'
+        next(w for w in self.app.text_area if w.label=='Live meeting notes').set_value(notes).run(timeout=30)
+        self.assert_no_exception()
+        self.button('Start meeting').click().run(timeout=30)
+        self.assert_no_exception()
+        self.button('Pause meeting').click().run(timeout=30)
+        self.button('Resume meeting').click().run(timeout=30)
+        self.button('Finish meeting').click().run(timeout=30)
+        self.assert_no_exception()
+        self.assertTrue(next(w for w in self.app.text_area if w.label=='Live meeting notes').disabled)
+        self.assertEqual(Store(self.db).list_meetings(),[])
+        self.button('Use finished notes for AI review →').click().run(timeout=30)
+        self.assert_no_exception()
+        self.assertEqual(self.app.sidebar.radio[0].value,'Capture meeting')
+        self.assertTrue(any(w.value==notes for w in self.app.text_area))
+        self.assertEqual(Store(self.db).list_meetings(),[])
+
     def test_empty_capture_keeps_user_on_form(self):
         self.page('Capture meeting')
         self.button('Find decisions & actions →').click().run(timeout=30)

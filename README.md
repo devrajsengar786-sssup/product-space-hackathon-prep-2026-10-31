@@ -62,7 +62,7 @@ From this folder:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-On **31 October 2026, all 66 automated checks passed**: 15 extraction/provider-boundary tests, 22 persistence/tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, and 5 Streamlit UI workflow tests. GitHub calls and Ollama responses in those tests were mocked; they do not establish a working live integration.
+On **31 October 2026, all 76 automated checks passed**: 15 extraction/provider-boundary tests, 22 persistence/tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, 9 live-session tests, and 6 Streamlit UI workflow tests. GitHub calls and Ollama responses in those tests were mocked; they do not establish a working live integration.
 
 A local browser check also loaded the fictional planning meeting, extracted its results, and opened the review screen with source evidence and owner/date warnings. No approval was clicked in that browser check. No GitHub issue or Wispr recording was made. The later local AI smoke check used only fictional text on this computer. Full details and remaining live checks are in `PROJECT-NOTES.md`.
 
@@ -100,3 +100,8 @@ Answers are generated from up to ten selected excerpts within a bounded context,
 The automated suite includes citation rejection, scope isolation, local-provider boundaries, unchanged storage and all six UI modes. `assistant_smoke.py` exercises all six tools against fictional temporary data using the installed Qwen3 1.7B model, saving results under ignored `data/`. Run this optional check only with local Ollama available. Compact-model suggestions need human review; no production accuracy claim is made.
 
 Risk assistance is restricted to detected source flags (overdue, incomplete, blocked or draft-conflicting work); when none exist it does not invent a risk report. Clarification filtering omits questions about known owners, dates and status. AI interpretations still require review.
+
+
+Live meeting companion added: workspace-local sessions with an agenda, participant names, typed/Wispr-entered notes, an optional existing Zoom/Meet/Teams link, and start/pause/resume/finish clock controls. The clock persists across page reloads and excludes paused time; it continues counting elapsed time while running, even if the browser is closed. Notes save on field submission/blur or Save notes now. Closing the browser with unsubmitted keystrokes can lose those keystrokes. Conflicting stale-tab saves are rejected, with an option to download local edits before reloading.
+
+Finished sessions are read-only. Use finished notes for AI review prefills Capture meeting; the user still starts analysis and reviews/approves the resulting plan. This handoff does not create tasks, approve decisions or publish anything. Live sessions use a separate ignored `.live.sqlite3` file alongside the workspace database. Export notes from the live page: the normal JSON workspace backup does not include live sessions. After analysis, the saved transcript is included in normal workspace backup. No call is created, joined or hosted by the app. No microphone/camera permissions, audio recording, automatic transcription or attendee invitations were added. Browser verification uses explicitly fictional typed notes and is not Wispr usage evidence.

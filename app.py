@@ -16,13 +16,14 @@ from decisiondesk.samples import get_demo_meetings
 from decisiondesk.store import Store
 from decisiondesk.features import calendar_export
 from decisiondesk.workspaces import Workspaces
+from decisiondesk.live import LiveMeetings, elapsed, export_notes, FIELDS
 from decisiondesk.assistant import MODES, assist, workspace_sources, select_sources, fingerprint, clarify_tasks, export_answer
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('DECISIONDESK_DB_PATH', str(ROOT / 'data' / 'decisiondesk.sqlite3')))
 TODAY = date.today()
 DEFAULT_REPO = 'devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31'
-PAGES = ['Overview', 'AI Assistant', 'Capture meeting', 'Review & approve', 'Action board', 'Decision memory', 'Search memory', 'Timeline & changes', 'Weekly digest', 'Team insights', 'Workspace settings', 'Connections']
+PAGES = ['Overview', 'AI Assistant', 'Live meeting', 'Capture meeting', 'Review & approve', 'Action board', 'Decision memory', 'Search memory', 'Timeline & changes', 'Weekly digest', 'Team insights', 'Workspace settings', 'Connections']
 
 st.set_page_config(page_title='DecisionDesk · Meetings that move work', page_icon='◈', layout='wide')
 st.markdown('<style>' + (ROOT / 'decisiondesk' / 'theme.css').read_text(encoding='utf-8') + '</style>', unsafe_allow_html=True)
@@ -136,6 +137,7 @@ if page == 'Overview':
     metrics=[('Meetings to review',len(drafts),'◎'),('Open tasks',len(open_tasks),'▤'),('Overdue tasks',len(overdue),'◷'),('Completed tasks',len(completed),'✓')]
     cards=''.join(f'<div class="summary-card"><span class="summary-symbol">{symbol}</span><span>{label}</span><strong>{value}</strong></div>' for label,value,symbol in metrics)
     st.markdown('<div class="summary-grid">'+cards+'</div>',unsafe_allow_html=True)
+    if st.button('Open live meeting workspace →'):jump('Live meeting')
     a,b,c=st.columns(3)
     if a.button('＋ Capture a meeting',type='primary',width='stretch'):jump('Capture meeting')
     if b.button('Ask your meetings',width='stretch'):
@@ -187,6 +189,86 @@ if page == 'Overview':
         with st.expander('How DecisionDesk works'):
             st.write('1. Capture a conversation. 2. Review AI suggestions and fill missing details. 3. Approve locally. 4. Track the work or explicitly publish selected tasks.')
             st.caption('AI Assistant can answer questions and prepare drafts. It does not change your workspace or send messages.')
+
+elif page == 'Live meeting':
+    header('Workspace / Live meeting','Keep the conversation moving.',
+           'Run an agenda, type or dictate notes with Wispr Flow, then turn the finished conversation into an AI-reviewed plan.')
+    st.caption('This is a local meeting companion. It does not host calls, record audio, or automatically transcribe other participants. Use your usual meeting app for the call.')
+    live=LiveMeetings(store.path.with_suffix('.live.sqlite3'))
+    with st.expander('＋ New live meeting',expanded=not live.list()):
+        with st.form('new_live_meeting'):
+            new_title=st.text_input('New meeting title',max_chars=150,placeholder='e.g. Weekly product sync')
+            new_day=st.date_input('Meeting day',value=TODAY)
+            create_live=st.form_submit_button('Create live meeting',type='primary')
+        if create_live:
+            try:
+                st.session_state['live_picker']=live.create(new_title,new_day.isoformat())
+                st.rerun()
+            except ValueError as error:st.error(str(error))
+    sessions=live.list()
+    if not sessions:
+        empty('Your meeting space is ready','Create a session above. Notes stay in this project workspace and can be resumed later.')
+    else:
+        sid=st.selectbox('Live meeting session',[r['id'] for r in sessions],key='live_picker',format_func=lambda identifier:next(r['title']+' · '+r['status'] for r in sessions if r['id']==identifier))
+        row=live.get(sid)
+        prefix=f'live_{active_workspace}_{sid}_'
+        version_key=prefix+'version'
+        if version_key not in st.session_state:
+            st.session_state[version_key]=row['version']
+            for field in FIELDS:st.session_state[prefix+field]=row[field]
+        def save_live_fields():
+            try:
+                updated=live.save(sid,st.session_state[version_key],**{field:st.session_state[prefix+field] for field in FIELDS})
+                st.session_state[version_key]=updated['version']
+                st.session_state.pop(prefix+'error',None)
+            except ValueError as error:st.session_state[prefix+'error']=str(error)
+        stale=row['version']!=st.session_state[version_key]
+        if stale:st.warning('A newer version exists in another tab. Download your local notes before reloading to avoid losing edits.')
+        if st.button('Reload saved session'):
+            for key in list(st.session_state):
+                if key.startswith(prefix):del st.session_state[key]
+            st.rerun()
+        @st.fragment(run_every=1 if row['status']=='running' else None)
+        def meeting_clock():
+            current=live.get(sid)
+            seconds=int(elapsed(current));hours,rest=divmod(seconds,3600);minutes,seconds=divmod(rest,60)
+            st.markdown(f'<div class="live-clock"><span>{escape(current["status"].upper())}</span><strong>{hours:02d}:{minutes:02d}:{seconds:02d}</strong><small>Meeting clock · paused time is excluded</small></div>',unsafe_allow_html=True)
+        meeting_clock()
+        controls=st.columns(3)
+        events=[('start','Start meeting'),('pause','Pause meeting'),('resume','Resume meeting'),('finish','Finish meeting')]
+        available={'ready':('start','finish'),'running':('pause','finish'),'paused':('resume','finish'),'ended':()}
+        for index,(event,label) in enumerate(events):
+            if event in available[row['status']] and controls[index%3].button(label,disabled=stale or bool(st.session_state.get(prefix+'error')),type='primary' if event in ('start','resume') else 'secondary'):
+                try:
+                    updated=live.transition(sid,st.session_state[version_key],event)
+                    st.session_state[version_key]=updated['version'];st.rerun()
+                except ValueError as error:st.error(str(error))
+        locked=row['status']=='ended'
+        left,right=st.columns([1,1.7])
+        with left:
+            st.text_input('Session title',key=prefix+'title',max_chars=150,on_change=save_live_fields,disabled=locked)
+            st.text_input('Participants',key=prefix+'participants',max_chars=2000,on_change=save_live_fields,disabled=locked,placeholder='Names, separated by commas')
+            st.text_input('Existing meeting link (optional)',key=prefix+'call_url',max_chars=2000,on_change=save_live_fields,disabled=locked,placeholder='Paste your Zoom, Meet or Teams HTTPS link')
+            if row['call_url']:st.link_button('Open meeting call ↗',row['call_url'])
+            st.text_area('Agenda',key=prefix+'agenda',height=220,max_chars=6000,on_change=save_live_fields,disabled=locked,placeholder='1. Review progress\n2. Make decisions\n3. Confirm next steps')
+        with right:
+            st.text_area('Live meeting notes',key=prefix+'notes',height=400,max_chars=30000,on_change=save_live_fields,disabled=locked,placeholder='Click here and dictate with Wispr Flow, or type.\nMaya: Decision: …\nArjun: I will … by …')
+            st.caption('Notes save when the field is submitted or loses focus. Click Save notes now before closing the tab. Unsaved keystrokes can be lost if the browser closes.')
+            if not locked and st.button('Save notes now',disabled=stale):
+                save_live_fields();st.rerun()
+            if st.session_state.get(prefix+'error'):st.error(st.session_state[prefix+'error'])
+            elif not stale:st.caption('Saved locally · '+row['meeting_date']+' · No audio recording')
+        local_copy=dict(row,**{field:st.session_state[prefix+field] for field in FIELDS})
+        st.download_button('Download session notes',export_notes(local_copy),'decisiondesk-live-meeting.md','text/markdown')
+        st.caption('Live sessions are stored separately from the workspace JSON backup. Download notes here; once analyzed and saved, the transcript is also included in the normal workspace backup.')
+        if locked:
+            st.success('Meeting finished. Its notes are preserved. Prepare AI review below; decisions and tasks still need your approval.')
+        if st.button('Use finished notes for AI review →',type='primary',disabled=not locked or not row['notes'].strip() or stale):
+            st.session_state['capture_title']=row['title']
+            st.session_state['capture_date']=date.fromisoformat(row['meeting_date'])
+            st.session_state['capture_text']=row['notes']
+            jump('Capture meeting')
+        if not locked:st.caption('Finish the meeting to prepare AI review. This does not approve or publish anything.')
 
 elif page == 'AI Assistant':
     header('Workspace / AI Assistant','From meeting memory to a useful next step.',
@@ -650,6 +732,7 @@ elif page == 'Workspace settings':
             st.error(str(error))
     st.divider()
     st.subheader('Backup this workspace')
+    st.caption('Live meeting sessions have a separate Download session notes button in Live meeting. They are not included in this JSON backup.')
     st.caption('The JSON backup contains meeting transcripts and local task history. Store it privately. Credentials are not included.')
     workspace_label=next(w['name'] for w in workspace_options if w['id']==active_workspace)
     st.download_button('Download workspace backup',store.export_backup(),f'decisiondesk-backup-{TODAY}.json','application/json')

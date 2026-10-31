@@ -54,7 +54,7 @@ Run from the project folder:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-**31 October 2026: the complete automated suite passed — 66 tests.** The breakdown is 15 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, and 5 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
+**31 October 2026: the complete automated suite passed — 76 tests.** The breakdown is 15 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, 9 live-session tests, and 6 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
 
 Covered and passing:
 
@@ -103,3 +103,8 @@ AI assistance expansion, 31 October: six read-only tools with bounded workspace 
 Live local AI verification: all six assistant modes returned at least one item with a validated source ID and verbatim quote on a fictional approved meeting, using Qwen3 1.7B. Observed single-run response times were 5.2–16.5 seconds. These checks establish a working local inference path and citation plumbing, not general answer accuracy or task feasibility. No persistent user meeting data was modified.
 
 Risk assistance is restricted to detected source flags (overdue, incomplete, blocked or draft-conflicting work); when none exist it does not invent a risk report. Clarification filtering omits questions about known owners, dates and status. AI interpretations still require review.
+
+
+Live meeting companion added: workspace-local sessions with an agenda, participant names, typed/Wispr-entered notes, an optional existing Zoom/Meet/Teams link, and start/pause/resume/finish clock controls. The clock persists across page reloads and excludes paused time; it continues counting elapsed time while running, even if the browser is closed. Notes save on field submission/blur or Save notes now. Closing the browser with unsubmitted keystrokes can lose those keystrokes. Conflicting stale-tab saves are rejected, with an option to download local edits before reloading.
+
+Finished sessions are read-only. Use finished notes for AI review prefills Capture meeting; the user still starts analysis and reviews/approves the resulting plan. This handoff does not create tasks, approve decisions or publish anything. Live sessions use a separate ignored `.live.sqlite3` file alongside the workspace database. Export notes from the live page: the normal JSON workspace backup does not include live sessions. After analysis, the saved transcript is included in normal workspace backup. No call is created, joined or hosted by the app. No microphone/camera permissions, audio recording, automatic transcription or attendee invitations were added. Browser verification uses explicitly fictional typed notes and is not Wispr usage evidence.
