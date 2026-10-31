@@ -20,7 +20,7 @@ Before submission, the user should copy or summarize the exact selected brief an
 
 The Streamlit interface accepts typed/pasted meeting text or UTF-8 `.txt` uploads of up to 30,000 characters, previews extraction, highlights incomplete follow-ups and conflicts, and asks for review/approval before updating accepted memory. SQLite stores local meeting records, accepted decisions, and action items at `data/decisiondesk.sqlite3`; this directory is ignored by Git. A navy/teal workspace visual restyle is presentation work and does not change the functional claims below.
 
-The default extraction path is deterministic and rule-based, not live AI. It targets explicit speaker labels, decisions, owners, and dates. An optional local Ollama `/api/chat` path is available for a user-installed model; no model has been installed or connected for this project, so a live local AI demonstration remains unverified.
+The default extraction path is deterministic and rule-based, not live AI. It targets explicit speaker labels, decisions, owners, and dates. An optional local Ollama `/api/chat` path is available for a user-installed model; Ollama 0.40.13 and Qwen3 1.7B are now installed and selected locally. A live fictional two-line smoke check passed in 12.8 seconds. This is not a measurement of real-meeting accuracy.
 
 Saving a meeting and approving its extracted memory are separate steps. When a new decision conflicts with accepted memory, the reviewer can keep the previous decision or replace it. Due-soon reminders are calculated for open approved/published actions with valid due dates and shown inside the app while it is open. Drafts do not create reminders; missing dates must be reviewed. Weekly digest and owner exports are Markdown artifacts. No unattended emails, calendar alarms, or background reminder delivery are implemented.
 
@@ -54,7 +54,7 @@ Run from the project folder:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-**31 October 2026: the complete automated suite passed — 39 tests.** The breakdown is 14 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, and 3 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
+**31 October 2026: the complete automated suite passed — 53 tests.** The breakdown is 15 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, 12 workspace-feature tests, and 4 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
 
 Covered and passing:
 
@@ -70,12 +70,12 @@ Covered and passing:
 Remaining real-world checks and deliverables:
 
 - Actual GitHub issue creation: **not demonstrated; no issue was posted; requires explicit app confirmation**.
-- Local Ollama model and real AI extraction: **not connected or demonstrated**.
+- Local Ollama model and real AI extraction: **basic live fictional smoke check passed**; broader meeting quality remains unmeasured.
 - Wispr dictation and evidence/accessibility approval: **not demonstrated for this product; accommodation still pending**.
 - Full computer-restart/relaunch check, actual export-file playback/opening, and final visual QA after styling: **not recorded here**.
 - Three-minute demo video and judge access to the video/code: **not prepared or verified**.
 
-No GitHub Issues, AI inference requests, Wispr recordings, social posts, or hosted deployments were made during these checks.
+No GitHub Issues, Wispr recordings, social posts, or hosted deployments were made. Automated provider tests use mocks; the later live local-model check used fictional meeting text.
 
 The Atlas transcripts are fictional and generated for this demo. No real-user accuracy, time saved, adoption, or performance metrics have been measured. The rule-based path may miss complex language and must be reviewed before acceptance or external action.
 
@@ -90,3 +90,9 @@ The Atlas transcripts are fictional and generated for this demo. No real-user ac
 - LinkedIn links and engagement screenshots, if submitted: **to be prepared by the user**; deadline **1 November 2026, 11:59 PM IST**.
 
 Check that demo/video/code links work with the access the judges will have. Do not publish credentials, local database files, confidential meeting transcripts, or fabricated voice evidence.
+
+
+Professional features added 31 October: isolated project workspaces; local backup/validated atomic restore into an empty workspace; search with source links; accepted decision timeline; latest-meeting changes; priorities, dependency cycle checks and completion blocking; all-day calendar export; measured team workload and completion. New tests cover these behaviors, workspace switching and consent isolation. Browser verification confirmed the updated navy/teal dashboard serving on localhost.
+
+
+Local AI setup completed: official installer signature verified as Ollama Inc.; model files obtained from the official Ollama registry and SHA-256 checked before installation. Installed Qwen3 0.6B and 1.7B; selected 1.7B after the smaller model overclassified dated commitments. Improved source validation filters clear task promises out of decision memory and explains omissions. Live verification checked one decision, one action, its named owner/deadline, and source evidence. Timing is one machine/sample observation only. Local inference is free of paid API calls; downloading the app/model required network access. No claims of production readiness or real meeting accuracy are made.

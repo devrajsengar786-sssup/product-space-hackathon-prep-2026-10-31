@@ -307,6 +307,13 @@ def _grounded_result(result: dict, text: str, reference: date, model: str) -> di
                     item['due_date'] = ''
                     _warning(warnings, 'An unsupported or ambiguous deadline was removed; confirm it manually.')
             if collection == 'decisions':
+                # Compact models sometimes promote every dated commitment into
+                # decision memory. A clear task promise alone is not a decision.
+                commitment = re.search(r"\b(?:I|[A-Z][\w-]*)\s+(?:will|must|am going to)\b", evidence)
+                decision_cue = re.search(r"\b(?:decision|decided|agreed|approved|selected|chose|chosen|resolved)\b", evidence, re.I)
+                if commitment and not decision_cue:
+                    _warning(warnings, 'A task commitment proposed as a decision was omitted from decision memory; review its action instead.')
+                    continue
                 value_in_source = _clean(item['value']).casefold() in evidence.casefold()
                 resolved = _resolve_date(evidence, reference, warnings)
                 if not item['topic'] or not item['statement'] or not item['value'] or not (
@@ -355,12 +362,23 @@ def analyze_transcript(text: str, meeting_date: str, engine: str = 'offline', mo
         'dates. Spoken corrections supersede earlier words but must be flagged for review. '
         'Decisions need a stable short topic (such as launch date or database), the full '
         'statement, and its concrete value (a canonical ISO date for date decisions). '
+        'Keep decisions and actions separate. A date decision is not an assigned task; '
+        'a task commitment alone is not a team decision. Do not duplicate each source into both arrays. '
+        'Write full decision statements and actionable task titles with a verb. '
         'Only extract actual decisions and explicit action commitments. A question or '
         'suggestion is not an approved decision. All output is a proposal for human review.'
     )
     payload = {'model': model.strip(), 'stream': False, 'format': _SCHEMA,
+               **({'think': False} if model.strip().split(':')[0]=='qwen3' else {}),
                'options': {'temperature': 0, 'num_predict': 2500},
                'messages': [{'role': 'system', 'content': system},
+                            {'role': 'user', 'content': json.dumps({'meeting_date':'2026-01-01', 'transcript':'Nora: Decision: database is PostgreSQL.\nAli: I will test backups by 2026-01-05.'})},
+                            {'role': 'assistant', 'content': json.dumps({
+                                'summary':'The team chose PostgreSQL. Ali will test backups.',
+                                'speakers':['Nora','Ali'],
+                                'decisions':[{'topic':'database','statement':'The database is PostgreSQL.','value':'PostgreSQL','owner':'Nora','due_date':'','evidence':'Nora: Decision: database is PostgreSQL.'}],
+                                'actions':[{'title':'Test backups','owner':'Ali','due_date':'2026-01-05','description':'Test database backups.','evidence':'Ali: I will test backups by 2026-01-05.'}],
+                                'warnings':[]})},
                             {'role': 'user', 'content': json.dumps(
                                 {'meeting_date': reference.isoformat(), 'transcript': text})}]}
     try:

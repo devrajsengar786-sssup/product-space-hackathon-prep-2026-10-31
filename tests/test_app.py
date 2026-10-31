@@ -71,8 +71,22 @@ class AppWorkflowTests(unittest.TestCase):
         self.button('Mark done').click().run(timeout=30)
         self.assert_no_exception()
         self.assertEqual(len([a for a in store.list_actions() if a['status']=='done']), 1)
-        for page in ['Decision memory', 'Weekly digest', 'Connections', 'Overview']:
+        for page in ['Decision memory', 'Weekly digest', 'Search memory', 'Timeline & changes', 'Team insights', 'Workspace settings', 'Connections', 'Overview']:
             self.page(page)
+
+    def test_create_and_switch_workspace_preserves_isolation(self):
+        self.capture_sample('Load planning meeting')
+        self.approve()
+        self.page('Workspace settings')
+        next(w for w in self.app.text_input if w.label=='Workspace name').set_value('Independent project')
+        self.button('Create workspace').click().run(timeout=30)
+        self.assert_no_exception()
+        self.assertNotEqual(self.app.sidebar.selectbox[0].value,'main')
+        self.page('Action board')
+        self.assertFalse(any(b.label=='Mark done' for b in self.app.button))
+        self.app.sidebar.selectbox[0].set_value('main').run(timeout=30)
+        self.assert_no_exception()
+        self.assertTrue(any(b.label=='Mark done' for b in self.app.button))
 
     def test_empty_capture_keeps_user_on_form(self):
         self.page('Capture meeting')
@@ -89,16 +103,16 @@ class AppWorkflowTests(unittest.TestCase):
         store.approve_meeting(mid, actions, {})
         ids = [a['id'] for a in store.list_actions()]
         self.page('Action board')
-        self.app.multiselect[0].set_value([ids[0]]).run(timeout=30)
+        next(w for w in self.app.multiselect if w.label=='Tasks to publish').set_value([ids[0]]).run(timeout=30)
         consent = next(c for c in self.app.checkbox if c.label.startswith('I approve creating'))
         consent.check().run(timeout=30)
         self.assertFalse(self.button('Create selected GitHub Issues').disabled)
-        self.app.text_input[0].set_value('example/a-different-repository').run(timeout=30)
+        next(w for w in self.app.text_input if w.label=='Destination repository (owner/name)').set_value('example/a-different-repository').run(timeout=30)
         consent = next(c for c in self.app.checkbox if c.label.startswith('I approve creating'))
         self.assertFalse(consent.value)
         self.assertTrue(self.button('Create selected GitHub Issues').disabled)
         consent.check().run(timeout=30)
-        self.app.multiselect[0].set_value(ids).run(timeout=30)
+        next(w for w in self.app.multiselect if w.label=='Tasks to publish').set_value(ids).run(timeout=30)
         consent = next(c for c in self.app.checkbox if c.label.startswith('I approve creating'))
         self.assertFalse(consent.value)
         self.assertTrue(self.button('Create selected GitHub Issues').disabled)

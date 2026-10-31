@@ -42,7 +42,7 @@ Typing, pasting, and uploading UTF-8 `.txt` transcript text are available as an 
 
 The default offline extractor uses deterministic rules. It is **not live AI**, and it can miss indirect phrasing, negation, ambiguous dates, or complex decisions. Explicit speaker labels and ISO dates work best. Review every proposed owner, date, and decision before approval.
 
-An optional local Ollama connection can use `/api/chat` with a model already installed by the user. No Ollama model has been installed or connected for this project. Local AI readiness and output quality are therefore unverified. Installing the OpenAI SDK during preparation did not connect a paid API; no paid request is part of this setup. The user requested free-only use. Account creation, billing, and permissions remain the user's decision.
+An optional local Ollama connection can use `/api/chat` with a model already installed by the user. Ollama 0.40.13 and Qwen3 1.7B are installed on this computer. A live fictional two-line meeting passed source-grounded decision/task extraction in 12.8 seconds; the selected local model preference is retained in ignored local data. Qwen3 0.6B is also installed but was not selected because it made classification mistakes. This is a basic smoke check, not a real-meeting accuracy benchmark. Compact models still need human review. Installing the OpenAI SDK during preparation did not connect a paid API; no paid request is part of this setup. The user requested free-only use. Account creation, billing, and permissions remain the user's decision.
 
 ## Storage and external actions
 
@@ -62,9 +62,9 @@ From this folder:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-On **31 October 2026, all 39 automated checks passed**: 14 extraction/provider-boundary tests, 22 persistence/tracker-adapter tests, and 3 Streamlit UI workflow tests. GitHub calls and Ollama responses in those tests were mocked; they do not establish a working live integration.
+On **31 October 2026, all 53 automated checks passed**: 15 extraction/provider-boundary tests, 22 persistence/tracker-adapter tests, 12 workspace-feature tests, and 4 Streamlit UI workflow tests. GitHub calls and Ollama responses in those tests were mocked; they do not establish a working live integration.
 
-A local browser check also loaded the fictional planning meeting, extracted its results, and opened the review screen with source evidence and owner/date warnings. No approval was clicked in that browser check. No GitHub issue, AI request, or Wispr recording was made during verification. Full details and remaining live checks are in `PROJECT-NOTES.md`.
+A local browser check also loaded the fictional planning meeting, extracted its results, and opened the review screen with source evidence and owner/date warnings. No approval was clicked in that browser check. No GitHub issue or Wispr recording was made. The later local AI smoke check used only fictional text on this computer. Full details and remaining live checks are in `PROJECT-NOTES.md`.
 
 Tests and fictional fixtures do not establish real meeting accuracy, actual Wispr use, a working local model, or judge access to private links. Visual restyling uses a navy/teal workspace direction and is verified separately from the functional suite.
 
@@ -77,3 +77,13 @@ Use the official brief and submission portal for final requirements. Prepare a t
 Official brief: https://theproductspace.in/ai-hackathon-details/problem-statement
 
 Event details: https://theproductspace.in/ai-hackathon-details
+
+
+## Professional workspace features
+
+Search meetings, task text, owners, and decision evidence with source links. Timeline retains superseded decisions; the latest-meeting view separates draft suggestions from accepted updates. Edit task priorities, deadlines and dependencies; cyclic dependencies are rejected and blocked tasks cannot be completed. Export open deadlines as calendar events without sending invitations.
+
+Create isolated local project workspaces from Workspace settings. Download a JSON backup and restore it only into an empty workspace; validation and rollback protect existing work. Backups include transcripts and should be kept private. Team insights report actual approved-task workload, overdue work and completion. No notifications are sent in the background. Local edits do not synchronize previously created GitHub issues.
+
+
+To repeat the optional live local-model check, run `.\.venv\Scripts\python.exe verify_local_ai.py` with Ollama running and Qwen3 1.7B installed. It uses fictional text, checks extracted categories/owner/deadline, records local results under ignored `data/`, and selects the model only after passing. It does not approve a meeting or create issues. Model request format follows the [official Ollama chat API](https://docs.ollama.com/api/chat).

@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import sqlite3
 import unicodedata
+from .features import WorkspaceFeatures
 
 
 def _now() -> str:
@@ -78,7 +79,7 @@ def _action(item: dict) -> dict:
     }
 
 
-class Store:
+class Store(WorkspaceFeatures):
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -132,6 +133,7 @@ class Store:
                     error TEXT
                 );
             """)
+            self._upgrade_features(db)
 
     @contextmanager
     def _connection(self):
@@ -352,10 +354,13 @@ class Store:
                 return
             if status == "done" and current not in {"approved", "published"}:
                 raise ValueError("Only approved or published actions can be completed.")
+            if status == "done" and self._unresolved_dependencies(db, action_id):
+                raise ValueError("Complete this task's dependencies first.")
             if status == "approved" and current != "done":
                 raise ValueError("Only completed actions can be reopened.")
             next_status = "published" if status == "approved" and row["external_url"] else status
             db.execute("UPDATE actions SET status=?,updated_at=? WHERE id=?", (next_status, _now(), action_id))
+            self._event(db, 'task_status', action_id, {'before':current,'after':next_status})
 
     def mark_published(self, action_id: int, url: str) -> None:
         if not re.fullmatch(r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[1-9][0-9]*", url):

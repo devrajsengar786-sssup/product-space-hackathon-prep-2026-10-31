@@ -104,6 +104,19 @@ class AnalysisTests(unittest.TestCase):
             self.assertIsInstance(payload['format'], dict)
             self.assertIn('untrusted', payload['messages'][0]['content'])
 
+    def test_task_promise_is_not_promoted_into_decision_memory(self):
+        import json
+        text='Arjun: I will draft notes by tomorrow.'
+        response=self._model_response(text)
+        data=json.loads(response['message']['content'])
+        data['decisions']=[{'topic':'notes','statement':'Draft notes tomorrow','value':'2026-11-01','owner':'Arjun','due_date':'2026-11-01','evidence':text}]
+        response['message']['content']=json.dumps(data)
+        with patch('decisiondesk.analysis._request_json',return_value=response):
+            result=analyze_transcript(text,'2026-10-31',engine='ollama',model='qwen3:1.7b')
+        self.assertEqual(result['decisions'],[])
+        self.assertEqual(len(result['actions']),1)
+        self.assertTrue(any('task commitment' in w for w in result['warnings']))
+
     def test_hallucinated_evidence_is_removed(self):
         with patch('decisiondesk.analysis._request_json', return_value=self._model_response('Not in transcript')):
             result = analyze_transcript('Maya: Hello.', '2026-10-31', engine='ollama', model='local')

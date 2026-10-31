@@ -14,17 +14,48 @@ from decisiondesk.analysis import AnalysisError, analyze_transcript, available_l
 from decisiondesk.integrations import github_status, issue_body, publish_action
 from decisiondesk.samples import get_demo_meetings
 from decisiondesk.store import Store
+from decisiondesk.features import calendar_export
+from decisiondesk.workspaces import Workspaces
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('DECISIONDESK_DB_PATH', str(ROOT / 'data' / 'decisiondesk.sqlite3')))
 TODAY = date.today()
 DEFAULT_REPO = 'devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31'
-PAGES = ['Overview', 'Capture meeting', 'Review & approve', 'Action board', 'Decision memory', 'Weekly digest', 'Connections']
+PAGES = ['Overview', 'Capture meeting', 'Review & approve', 'Action board', 'Decision memory', 'Search memory', 'Timeline & changes', 'Weekly digest', 'Team insights', 'Workspace settings', 'Connections']
 
 st.set_page_config(page_title='DecisionDesk · Meetings that move work', page_icon='◈', layout='wide')
 st.markdown('<style>' + (ROOT / 'decisiondesk' / 'theme.css').read_text(encoding='utf-8') + '</style>', unsafe_allow_html=True)
 
-store = Store(DB_PATH)
+PREFERENCES_PATH = DB_PATH.parent / 'preferences.json'
+try:
+    preferences = json.loads(PREFERENCES_PATH.read_text(encoding='utf-8'))
+except (OSError, ValueError):
+    preferences = {}
+if isinstance(preferences, dict) and preferences.get('engine') in ('offline', 'ollama'):
+    st.session_state.setdefault('analysis_engine', preferences['engine'])
+    if isinstance(preferences.get('model'), str):
+        st.session_state.setdefault('ollama_model', preferences['model'])
+
+
+def save_engine_preference(engine, model=''):
+    PREFERENCES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PREFERENCES_PATH.write_text(json.dumps({'engine': engine, 'model': model}), encoding='utf-8')
+
+
+catalog = Workspaces(DB_PATH)
+workspace_options = catalog.list()
+if 'switch_workspace' in st.session_state:
+    st.session_state['workspace_picker'] = st.session_state.pop('switch_workspace')
+active_workspace = st.session_state.get('workspace_picker', 'main')
+if active_workspace not in {w['id'] for w in workspace_options}:
+    active_workspace = 'main'
+if st.session_state.get('active_workspace', 'main') != active_workspace:
+    retained = {'workspace_picker','navigation','analysis_engine','ollama_model','local_models'}
+    for state_key in list(st.session_state):
+        if state_key not in retained:
+            del st.session_state[state_key]
+st.session_state['active_workspace'] = active_workspace
+store = Store(catalog.path(active_workspace))
 if 'jump_to' in st.session_state:
     st.session_state['navigation'] = st.session_state.pop('jump_to')
 
@@ -81,6 +112,8 @@ def meeting_picker():
 with st.sidebar:
     st.markdown('<div class="brand"><span class="brand-icon">◈</span><div class="brand-word">DecisionDesk<small>MEETING INTELLIGENCE</small></div></div>', unsafe_allow_html=True)
     st.markdown('<div class="eyebrow">Your workspace</div>', unsafe_allow_html=True)
+    st.selectbox('Project workspace', [w['id'] for w in workspace_options],
+                 format_func=lambda wid: next(w['name'] for w in workspace_options if w['id']==wid), key='workspace_picker')
     page = st.radio('Workspace navigation', PAGES, key='navigation', label_visibility='collapsed')
     st.divider()
     st.markdown(badge('LOCAL AI' if st.session_state.get('analysis_engine') == 'ollama' else 'RULES MODE', gray=True), unsafe_allow_html=True)
@@ -100,9 +133,8 @@ if page == 'Overview':
         if st.button('＋ Capture a meeting', type='primary', width='stretch'):
             jump('Capture meeting')
     stats = store.stats()
-    metrics = st.columns(4)
-    for col, label, key in zip(metrics, ['Meetings', 'Decisions saved', 'Open actions', 'Overdue'], ['meetings', 'decisions', 'open_actions', 'overdue']):
-        col.metric(label, stats.get(key, 0))
+    metric_cards = ''.join(f'<div class="summary-card"><span class="summary-symbol">{symbol}</span><span>{label}</span><strong>{stats.get(key,0)}</strong></div>' for label,key,symbol in [('Meetings','meetings','◉'),('Decisions saved','decisions','◎'),('Open actions','open_actions','▤'),('Overdue','overdue','◷')])
+    st.markdown('<div class="summary-grid">'+metric_cards+'</div>', unsafe_allow_html=True)
     st.write('')
     left, right = st.columns([1.7, 1])
     with left:
@@ -117,7 +149,7 @@ if page == 'Overview':
         for meeting in meetings[:5]:
             with st.container(border=True):
                 st.markdown(f"**{meeting['title']}**")
-                st.caption(f"{meeting['meeting_date']} · {str(meeting.get('status', 'draft')).replace('_',' ').title()}")
+                st.markdown(badge(str(meeting.get('status','draft')).title(), True) + f'<span class="small">{escape(meeting["meeting_date"])}</span>', unsafe_allow_html=True)
                 analysis = meeting.get('analysis', {})
                 if isinstance(analysis, str):
                     analysis = json.loads(analysis)
@@ -289,7 +321,7 @@ elif page == 'Review & approve':
 elif page == 'Action board':
     header('Workspace / Actions', 'The follow-through lives here.',
            'Track approved next steps, see what is due, and send tasks to GitHub only when you explicitly confirm.')
-    actions = store.list_actions()
+    actions = store.decorate_actions(store.list_actions())
     cols = st.columns([1, 1, 2])
     owners = sorted({a.get('owner') or 'Unassigned' for a in actions})
     owner_filter = cols[0].selectbox('Owner', ['Everyone'] + owners)
@@ -298,23 +330,51 @@ elif page == 'Action board':
         empty('No loose ends yet', 'Capture and approve a meeting to start tracking its actions.')
     shown = [a for a in actions if (owner_filter == 'Everyone' or (a.get('owner') or 'Unassigned') == owner_filter)
              and (state_filter == 'All' or a['status'] == state_filter)]
+    st.caption(f'{len(shown)} of {len(actions)} tasks · Filters affect the board below.')
+    if actions and not shown:
+        empty('No matching tasks', 'Try Everyone and All to clear the filters.')
     for action in shown:
         with st.container(border=True):
             ca, cb = st.columns([5, 1])
             with ca:
                 st.markdown(f"**{action['title']}**")
-                st.caption(f"{action.get('owner') or 'Unassigned'} · Due {action.get('due_date') or 'Not set'} · {action['status'].title()}")
+                st.markdown(badge(action['status'].title(), True) + badge(action.get('priority','Normal')) + (badge('Blocked', True) if action['blocked_by'] else ''), unsafe_allow_html=True)
+                st.caption(f"{action.get('owner') or 'Unassigned'} · Due {action.get('due_date') or 'Not set'}")
                 if action.get('description'):
                     st.write(action['description'])
                 if action.get('external_url'):
                     st.link_button('Open GitHub issue ↗', action['external_url'])
             with cb:
-                if action['status'] in ('approved','published') and st.button('Mark done', key=f"done_{action['id']}"):
+                if action['status'] in ('approved','published') and st.button('Mark done', key=f"done_{action['id']}", disabled=bool(action['blocked_by'])):
                     store.update_action_status(action['id'], 'done')
                     st.rerun()
+                if action['status']=='done' and st.button('Reopen',key=f"reopen_{action['id']}"):
+                    store.update_action_status(action['id'],'approved')
+                    st.rerun()
+            if action['blocked_by']:
+                st.caption('Waiting on: '+', '.join(a['title'] for a in action['blocked_by']))
+            if action['status']!='draft':
+                with st.expander('Edit task details & dependencies'):
+                    with st.form(f"edit_task_{action['id']}"):
+                        edit_title=st.text_input('Task title',value=action['title'])
+                        edit_owner=st.text_input('Task owner',value=action['owner'])
+                        edit_due=st.date_input('Deadline',value=date.fromisoformat(action['due_date']) if action.get('due_date') else TODAY)
+                        edit_priority=st.selectbox('Priority',['Low','Normal','High','Urgent'],index=['Low','Normal','High','Urgent'].index(action.get('priority','Normal')))
+                        edit_description=st.text_area('Task description',value=action.get('description',''))
+                        dependency_options=[a['id'] for a in actions if a['id']!=action['id'] and a['status']!='draft']
+                        edit_dependencies=st.multiselect('Must finish first',dependency_options,default=action['dependencies'],format_func=lambda aid: next(a['title'] for a in actions if a['id']==aid))
+                        st.caption('Edits stay local. Already-created GitHub Issues are not automatically updated.')
+                        save_edit=st.form_submit_button('Save task changes')
+                    if save_edit:
+                        try:
+                            store.edit_action(action['id'],title=edit_title,owner=edit_owner,due_date=edit_due.isoformat(),description=edit_description,priority=edit_priority,dependencies=edit_dependencies)
+                            st.rerun()
+                        except ValueError as error:
+                            st.error(str(error))
             if action['status'] == 'draft':
                 st.caption('Awaiting meeting review. Draft tasks cannot be posted.')
     due = store.due_actions(TODAY.isoformat(), days=7)
+    st.download_button('Export open deadlines to calendar',calendar_export(actions),'decisiondesk-deadlines.ics','text/calendar',help='All-day due dates. Import the file into your calendar; it does not send invitations.')
     with st.expander(f'Upcoming reminders · {len(due)} actions', expanded=bool(due)):
         st.caption('Workspace-wide reminders, independent of the board filters. Due-soon and overdue items are shown here while the app is open. No background messages or email notifications are sent.')
         if due:
@@ -399,6 +459,123 @@ elif page == 'Weekly digest':
     st.caption('Groups open actions, approaching deadlines, overdue work, and completions in the selected week. Team decision context is current memory, not a historical snapshot. Export is local; nothing is sent to other people.')
     st.download_button('Download weekly digest', '\n'.join(lines), f'decisiondesk-digest-{as_of}.md', 'text/markdown')
 
+elif page == 'Search memory':
+    header('Workspace / Search','Find the conversation behind the commitment.',
+           'Search only this workspace. Every result links back to its source meeting.')
+    query=st.text_input('Search meetings, decisions and tasks',placeholder='Try launch, release notes, or a person’s name')
+    kind=st.selectbox('Search in',['All','Meetings','Decisions','Tasks'])
+    results=store.search(query,kind)
+    if len(query.strip())<2:
+        empty('A source for every answer','Enter at least two characters to search meeting text, decision evidence, and task descriptions.')
+    elif not results:
+        empty('No results in this workspace','Try a shorter phrase or switch the record type to All.')
+    else:
+        st.caption(f'{len(results)} results · up to 200 shown')
+        for result in results:
+            with st.container(border=True):
+                st.markdown(badge(result['kind'])+badge(result['status'],True),unsafe_allow_html=True)
+                st.write('**'+result['title']+'**')
+                st.text(result['snippet'])
+                if st.button('Open source meeting →',key=f"search_{result['kind']}_{result['id']}"):
+                    st.session_state['selected_meeting']=result['meeting_id']
+                    jump('Review & approve')
+
+elif page == 'Timeline & changes':
+    header('Workspace / Timeline','A decision has a history.',
+           'See accepted changes and their meeting sources. Draft suggestions stay separate from accepted history.')
+    timeline_tab,changes_tab=st.tabs(['Decision timeline','Since the last meeting'])
+    with timeline_tab:
+        history=store.decision_timeline()
+        topic=st.selectbox('Decision topic',['All topics']+sorted({d['topic'] for d in history}))
+        if not history:
+            empty('Your history starts with approval','Accept a meeting decision to start its timeline. Replaced values remain visible here.')
+        for d in history:
+            if topic!='All topics' and d['topic']!=topic:
+                continue
+            with st.container(border=True):
+                st.markdown(badge('Current' if d['active'] else 'Superseded',not d['active']),unsafe_allow_html=True)
+                st.write('**'+d['topic'].title()+'**')
+                st.write(d['statement'])
+                if d['previous_value'] is not None:
+                    st.caption(f"Changed from {d['previous_value']} → {d['value']}")
+                st.caption(f"{d['meeting_title']} · Meeting {d['meeting_date']} · Accepted locally {d['created_at']}")
+                with st.expander('Supporting source'):
+                    st.text(d.get('evidence') or 'No source excerpt stored.')
+                if st.button('Open source meeting →',key=f"timeline_{d['id']}"):
+                    st.session_state['selected_meeting']=d['meeting_id'];jump('Review & approve')
+    with changes_tab:
+        changes=store.changes_since_last_meeting()
+        meeting=changes['meeting']
+        if not meeting:
+            empty('Compare your next conversation','Capture a meeting to see new commitments, completed work, and changed decisions.')
+        else:
+            st.subheader(meeting['title'])
+            st.caption(f"Most recent meeting by date · {meeting['meeting_date']} · {meeting['status']}")
+            if meeting['status']=='draft':
+                st.info('This meeting is awaiting review. The following are suggestions, not accepted changes.')
+                for conflict in store.find_conflicts(meeting['analysis'].get('decisions',[])):
+                    st.warning(conflict['previous_statement']+' → '+conflict['proposed_statement'])
+            else:
+                for d in changes['decisions']:
+                    st.write(f"**{d['topic'].title()}:** {d['previous_value'] or 'New decision'} → {d['value']}")
+            st.write(f"**{len(changes['actions'])} meeting tasks · {len(changes['completed'])} completions since capture**")
+            for a in changes['actions']:
+                st.write(f"• {a['title']} — {a['owner']} · {a['status']}")
+            due=store.due_actions(TODAY.isoformat())
+            st.caption(f'{len(due)} workspace tasks are overdue or approaching their deadlines.')
+            if st.button('Review this meeting',type='primary'):
+                st.session_state['selected_meeting']=meeting['id'];jump('Review & approve')
+
+elif page == 'Team insights':
+    header('Workspace / Insights','A clearer picture of the work.',
+           'Measured from approved tasks in this workspace. Drafts are excluded; no estimated productivity claims.')
+    analytics=store.analytics(TODAY.isoformat())
+    a,b,c=st.columns(3)
+    a.metric('Approved tasks',analytics['total']);b.metric('Completed',analytics['completed']);c.metric('Blocked',analytics['blocked'])
+    st.progress(analytics['completion_rate']/100,text=f"{analytics['completion_rate']}% of approved tasks completed")
+    if analytics['people']:
+        st.subheader('Workload by owner')
+        st.bar_chart(analytics['people'],x='Owner',y=['Open','Completed'])
+        st.dataframe(analytics['people'],hide_index=True,width='stretch')
+    else:
+        empty('Insights grow with your work','Approve a meeting plan to see actual workload, completion, and overdue counts.')
+
+elif page == 'Workspace settings':
+    header('Workspace / Settings','A place for every project.',
+           'Separate meeting memory, tasks, and backups by workspace. All data remains on this computer.')
+    st.subheader('Create a workspace')
+    with st.form('create_workspace'):
+        workspace_name=st.text_input('Workspace name',max_chars=80,placeholder='e.g. Product launch')
+        create_workspace=st.form_submit_button('Create workspace',type='primary')
+    if create_workspace:
+        try:
+            new_id=catalog.create(workspace_name)
+            st.session_state['switch_workspace']=new_id
+            st.rerun()
+        except ValueError as error:
+            st.error(str(error))
+    st.divider()
+    st.subheader('Backup this workspace')
+    st.caption('The JSON backup contains meeting transcripts and local task history. Store it privately. Credentials are not included.')
+    workspace_label=next(w['name'] for w in workspace_options if w['id']==active_workspace)
+    st.download_button('Download workspace backup',store.export_backup(),f'decisiondesk-backup-{TODAY}.json','application/json')
+    st.subheader('Restore into this workspace')
+    st.caption('Restore is available only for an empty workspace. Create a new one above to preserve existing work. Imported published issues retain their URLs and will not be posted again automatically.')
+    backup=st.file_uploader('DecisionDesk backup (.json)',type=['json'],key='backup_file')
+    if backup is not None:
+        if backup.size>20_000_000:
+            st.error('Use a backup smaller than 20 MB.')
+        else:
+            backup_bytes=backup.getvalue()
+            scope=hashlib.sha256(backup_bytes).hexdigest()[:16]
+            restore_consent=st.checkbox(f'Restore this backup into {workspace_label}.',key=f'restore_{active_workspace}_{scope}')
+            if st.button('Validate & restore',disabled=not restore_consent):
+                try:
+                    store.restore_backup(backup_bytes.decode('utf-8-sig'))
+                    st.success('Workspace restored. Open Overview to review the imported records.')
+                except (ValueError,UnicodeError) as error:
+                    st.error(str(error))
+
 elif page == 'Connections':
     header('Workspace / Connections', 'A small stack. Clear boundaries.',
            'Keep the workflow local. Connect a local AI model when available and publish only the tasks you approve.')
@@ -409,6 +586,7 @@ elif page == 'Connections':
             mode = st.selectbox('Mode', ['Offline rules', 'Local AI · Ollama'], index=1 if st.session_state.get('analysis_engine')=='ollama' else 0)
             if mode == 'Offline rules':
                 st.session_state['analysis_engine'] = 'offline'
+                save_engine_preference('offline')
                 st.info('Works without an account. Explicitly rule-based: limited language coverage and no live AI model. Use it to test the workflow, not as evidence of AI integration.')
             else:
                 st.caption('Uses only Ollama on this computer at 127.0.0.1:11434. A model must already be installed. This app does not install software or download models.')
@@ -421,6 +599,7 @@ elif page == 'Connections':
                     if st.button('Use this local model', type='primary'):
                         st.session_state['ollama_model'] = model
                         st.session_state['analysis_engine'] = 'ollama'
+                        save_engine_preference('ollama', model)
                         st.success('Local model selected. The next analysis will use it; connection success is verified only by a completed analysis.')
                 else:
                     st.warning('No local model detected yet. Offline rules remain available. No paid provider is configured.')
