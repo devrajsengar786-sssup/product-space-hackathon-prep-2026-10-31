@@ -8,6 +8,7 @@ from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
 
 from decisiondesk.store import Store
+from decisiondesk.navigation import destination, VIEW_KEYS
 
 
 class AppWorkflowTests(unittest.TestCase):
@@ -30,8 +31,12 @@ class AppWorkflowTests(unittest.TestCase):
         return next(item for item in self.app.button if item.label == label)
 
     def page(self, label):
-        self.app.sidebar.radio[0].set_value(label).run(timeout=30)
+        section,view=destination(label)
+        self.app.sidebar.radio[0].set_value(section).run(timeout=30)
         self.assert_no_exception()
+        if section in VIEW_KEYS:
+            next(w for w in self.app.radio if w.key==VIEW_KEYS[section]).set_value(view).run(timeout=30)
+            self.assert_no_exception()
 
     def approve(self):
         checkbox = next(c for c in self.app.checkbox if c.label.startswith('I reviewed'))
@@ -44,7 +49,8 @@ class AppWorkflowTests(unittest.TestCase):
         self.button(label).click().run(timeout=30)
         self.button('Find decisions & actions →').click().run(timeout=30)
         self.assert_no_exception()
-        self.assertEqual(self.app.sidebar.radio[0].value, 'Review & approve')
+        self.assertEqual(self.app.sidebar.radio[0].value, 'Meeting memory')
+        self.assertEqual(self.app.session_state['memory_view'],'Review meetings')
 
     def test_capture_approve_cross_meeting_conflict_and_follow_through(self):
         self.capture_sample('Load planning meeting')
@@ -133,7 +139,8 @@ class AppWorkflowTests(unittest.TestCase):
         self.assertEqual(Store(self.db).list_meetings(),[])
         self.button('Use finished notes for AI review →').click().run(timeout=30)
         self.assert_no_exception()
-        self.assertEqual(self.app.sidebar.radio[0].value,'Capture meeting')
+        self.assertEqual(self.app.sidebar.radio[0].value,'New meeting')
+        self.assertEqual(self.app.session_state['new_meeting_view'],'Paste transcript')
         self.assertTrue(any(w.value==notes for w in self.app.text_area))
         self.assertEqual(Store(self.db).list_meetings(),[])
 

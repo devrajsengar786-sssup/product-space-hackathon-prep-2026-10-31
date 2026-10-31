@@ -16,6 +16,7 @@ from decisiondesk.samples import get_demo_meetings
 from decisiondesk.store import Store
 from decisiondesk.features import calendar_export
 from decisiondesk.workspaces import Workspaces
+from decisiondesk.navigation import SECTIONS, VIEW_KEYS, apply_destination, route_for
 from decisiondesk.live import LiveMeetings, elapsed, export_notes, FIELDS
 from decisiondesk.assistant import MODES, assist, workspace_sources, select_sources, fingerprint, clarify_tasks, export_answer
 
@@ -23,7 +24,7 @@ ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('DECISIONDESK_DB_PATH', str(ROOT / 'data' / 'decisiondesk.sqlite3')))
 TODAY = date.today()
 DEFAULT_REPO = 'devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31'
-PAGES = ['Overview', 'AI Assistant', 'Live meeting', 'Capture meeting', 'Review & approve', 'Action board', 'Decision memory', 'Search memory', 'Timeline & changes', 'Weekly digest', 'Team insights', 'Workspace settings', 'Connections']
+PAGES = list(SECTIONS)
 
 st.set_page_config(page_title='DecisionDesk · Meetings that move work', page_icon='◈', layout='wide')
 st.markdown('<style>' + (ROOT / 'decisiondesk' / 'theme.css').read_text(encoding='utf-8') + '</style>', unsafe_allow_html=True)
@@ -59,7 +60,12 @@ if st.session_state.get('active_workspace', 'main') != active_workspace:
 st.session_state['active_workspace'] = active_workspace
 store = Store(catalog.path(active_workspace))
 if 'jump_to' in st.session_state:
-    st.session_state['navigation'] = st.session_state.pop('jump_to')
+    apply_destination(st.session_state, st.session_state.pop('jump_to'))
+elif st.session_state.get('navigation', 'Dashboard') not in SECTIONS:
+    try:
+        apply_destination(st.session_state, st.session_state['navigation'])
+    except ValueError:
+        st.session_state['navigation'] = 'Dashboard'
 
 
 def jump(page: str):
@@ -72,7 +78,9 @@ def badge(text: str, gray=False):
 
 
 def header(kicker, title, description):
-    section = kicker.split('/')[-1].strip()
+    subsection = kicker.split('/')[-1].strip()
+    section = current_section + (' / ' + subsection if subsection != current_section else '')
+    kicker = section
     st.markdown(f'<div class="desk-topbar"><div class="breadcrumb">DecisionDesk <span>/</span> <b>{escape(section)}</b></div><div class="desk-status"><i class="desk-dot"></i> LOCAL WORKSPACE</div></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="eyebrow">{escape(kicker)}</div>', unsafe_allow_html=True)
     st.title(title)
@@ -116,11 +124,21 @@ with st.sidebar:
     st.markdown('<div class="eyebrow">Your workspace</div>', unsafe_allow_html=True)
     st.selectbox('Project workspace', [w['id'] for w in workspace_options],
                  format_func=lambda wid: next(w['name'] for w in workspace_options if w['id']==wid), key='workspace_picker')
-    page = st.radio('Workspace navigation', PAGES, key='navigation', label_visibility='collapsed', format_func=lambda name: {'Overview':'Dashboard','Connections':'AI & connections'}.get(name,name))
+    current_section = st.radio('Workspace navigation', PAGES, key='navigation', label_visibility='collapsed')
     st.divider()
     st.markdown(badge('LOCAL AI' if st.session_state.get('analysis_engine') == 'ollama' else 'RULES MODE', gray=True), unsafe_allow_html=True)
     st.caption('Local AI selected' if st.session_state.get('analysis_engine') == 'ollama' else 'No AI model connected. Rules mode is available for workflow testing.')
     st.markdown('<div class="sidebar-note"><strong>Every decision, accounted for.</strong><p>Your meeting memory stays on this computer. External tasks need your approval.</p></div><div class="sidebar-profile"><span class="profile-avatar">DD</span><div><strong>Your workspace</strong><small>Local access only</small></div></div>', unsafe_allow_html=True)
+
+views = SECTIONS[current_section]
+if len(views) > 1:
+    view_key = VIEW_KEYS[current_section]
+    if st.session_state.get(view_key) not in views:
+        st.session_state[view_key] = next(iter(views))
+    selected_view = st.radio(current_section + ' views', list(views), key=view_key, horizontal=True, label_visibility='collapsed')
+    page = route_for(current_section, selected_view)
+else:
+    page = route_for(current_section)
 
 if st.session_state.pop('flash', None):
     st.success('Saved. Your workspace is up to date.')
@@ -137,9 +155,8 @@ if page == 'Overview':
     metrics=[('Meetings to review',len(drafts),'◎'),('Open tasks',len(open_tasks),'▤'),('Overdue tasks',len(overdue),'◷'),('Completed tasks',len(completed),'✓')]
     cards=''.join(f'<div class="summary-card"><span class="summary-symbol">{symbol}</span><span>{label}</span><strong>{value}</strong></div>' for label,value,symbol in metrics)
     st.markdown('<div class="summary-grid">'+cards+'</div>',unsafe_allow_html=True)
-    if st.button('Open live meeting workspace →'):jump('Live meeting')
     a,b,c=st.columns(3)
-    if a.button('＋ Capture a meeting',type='primary',width='stretch'):jump('Capture meeting')
+    if a.button('＋ New meeting',type='primary',width='stretch'):jump('Capture meeting')
     if b.button('Ask your meetings',width='stretch'):
         st.session_state['assistant_mode']='Ask your meetings';jump('AI Assistant')
     if c.button('Prepare a meeting brief',width='stretch'):
@@ -749,7 +766,7 @@ elif page == 'Workspace settings':
             if st.button('Validate & restore',disabled=not restore_consent):
                 try:
                     store.restore_backup(backup_bytes.decode('utf-8-sig'))
-                    st.success('Workspace restored. Open Overview to review the imported records.')
+                    st.success('Workspace restored. Open Dashboard to review the imported records.')
                 except (ValueError,UnicodeError) as error:
                     st.error(str(error))
 

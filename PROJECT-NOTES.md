@@ -54,7 +54,7 @@ Run from the project folder:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-**31 October 2026: the complete automated suite passed — 76 tests.** The breakdown is 15 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, 9 live-session tests, and 6 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
+**31 October 2026: the complete automated suite passed — 79 tests.** The breakdown is 15 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, 9 live-session tests, 3 navigation tests, and 6 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
 
 Covered and passing:
 
@@ -108,3 +108,6 @@ Risk assistance is restricted to detected source flags (overdue, incomplete, blo
 Live meeting companion added: workspace-local sessions with an agenda, participant names, typed/Wispr-entered notes, an optional existing Zoom/Meet/Teams link, and start/pause/resume/finish clock controls. The clock persists across page reloads and excludes paused time; it continues counting elapsed time while running, even if the browser is closed. Notes save on field submission/blur or Save notes now. Closing the browser with unsubmitted keystrokes can lose those keystrokes. Conflicting stale-tab saves are rejected, with an option to download local edits before reloading.
 
 Finished sessions are read-only. Use finished notes for AI review prefills Capture meeting; the user still starts analysis and reviews/approves the resulting plan. This handoff does not create tasks, approve decisions or publish anything. Live sessions use a separate ignored `.live.sqlite3` file alongside the workspace database. Export notes from the live page: the normal JSON workspace backup does not include live sessions. After analysis, the saved transcript is included in normal workspace backup. No call is created, joined or hosted by the app. No microphone/camera permissions, audio recording, automatic transcription or attendee invitations were added. Browser verification uses explicitly fictional typed notes and is not Wispr usage evidence.
+
+
+Navigation simplified to seven sections: Dashboard, New meeting, Meeting memory, Tasks, AI Assistant, Reports and Settings. New meeting groups Paste transcript and Live notes; Meeting memory groups Search, Decisions, History and Review meetings; Reports groups Weekly digest and Team insights; Settings groups Workspace and Connections. Related tools render only when selected, so inactive connection controls do not change the analysis preference. Existing in-app links route to the correct section and local view. No stored meeting data, live sessions or tools were deleted. Tests cover route completeness, migration from old navigation state and review/capture/task workflows through the grouped views.

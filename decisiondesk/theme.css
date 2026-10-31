@@ -270,3 +270,15 @@ html, body, .stApp { color: var(--desk-ink); background: var(--desk-canvas); }
 
 .live-clock{display:flex;flex-direction:column;padding:20px 24px;margin:10px 0 16px;border:1px solid #cce7e1;border-radius:12px;background:#eef8f5;gap:5px;}
 .live-clock span{font-size:10px;font-weight:750;letter-spacing:.13em;color:#148d85;}.live-clock strong{font-size:32px;font-variant-numeric:tabular-nums;color:#112039;}.live-clock small{font-size:12px;color:#5e7c80;}
+
+/* Main navigation stays short; related tools use local tabs. */
+.st-key-new_meeting_view [role="radiogroup"], .st-key-memory_view [role="radiogroup"], .st-key-reports_view [role="radiogroup"], .st-key-settings_view [role="radiogroup"] {display:flex;flex-wrap:wrap;gap:8px;padding:0 0 14px;border-bottom:1px solid var(--desk-line);margin-bottom:5px;}
+.st-key-new_meeting_view [data-testid="stRadioOption"], .st-key-memory_view [data-testid="stRadioOption"], .st-key-reports_view [data-testid="stRadioOption"], .st-key-settings_view [data-testid="stRadioOption"] {padding:8px 13px;border:1px solid var(--desk-line);border-radius:8px;background:white;}
+.st-key-new_meeting_view [data-testid="stRadioOption"]:has(input:checked), .st-key-memory_view [data-testid="stRadioOption"]:has(input:checked), .st-key-reports_view [data-testid="stRadioOption"]:has(input:checked), .st-key-settings_view [data-testid="stRadioOption"]:has(input:checked) {background:#eaf6f2;border-color:#91c9bd;}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(1)::before{content:"◫";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(2)::before{content:"＋";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(3)::before{content:"◎";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(4)::before{content:"▤";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(5)::before{content:"✦";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(6)::before{content:"▥";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(7)::before{content:"⚙";}
