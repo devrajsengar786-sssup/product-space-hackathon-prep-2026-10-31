@@ -270,6 +270,7 @@ elif page == 'Live meeting':
             st.text_area('Agenda',key=prefix+'agenda',height=220,max_chars=6000,on_change=save_live_fields,disabled=locked,placeholder='1. Review progress\n2. Make decisions\n3. Confirm next steps')
         with right:
             st.text_area('Live meeting notes',key=prefix+'notes',height=400,max_chars=30000,on_change=save_live_fields,disabled=locked,placeholder='Click here and dictate with Wispr Flow, or type.\nMaya: Decision: …\nArjun: I will … by …')
+            st.caption("Use speaker's name for clearer ownership")
             st.caption('Notes save when the field is submitted or loses focus. Click Save notes now before closing the tab. Unsaved keystrokes can be lost if the browser closes.')
             if not locked and st.button('Save notes now',disabled=stale):
                 save_live_fields();st.rerun()
