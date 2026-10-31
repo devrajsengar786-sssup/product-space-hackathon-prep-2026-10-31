@@ -23,7 +23,7 @@ Status: prepared for review, not submitted. Team/member/contact details, final r
 - 79 automated checks passed before submission preparation. Tests cover extraction/provider boundaries, SQLite workflows, approvals/conflicts, tracker mocks, workspace features, assistant source checks, live sessions and navigation.
 - Local AI extraction and all six assistant tools have been exercised with fictional inputs. These are functional checks, not real-world accuracy or productivity benchmarks.
 - The final two-meeting live-AI rehearsal passed, including a spoken correction, conflict rejection/resolution, completion, digest, history and backup restore. See Rehearsal-results.md.
-- GitHub creation is implemented and mock-tested. A successful real issue test must have its own actual URL before it is described as demonstrated.
+- GitHub creation is implemented, mock-tested, and now live-verified with one explicitly user-approved fictional issue: https://github.com/devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31/issues/1. Its title/body match the preview (normalizing GitHub line endings), and the app records the task as published.
 - Exact-quote validation checks provenance; it does not prove an AI interpretation is correct. Owners, dates, suggested steps and decisions require review.
 - In-app reminders run while using the app. No background email or attendee messaging is implemented.
 - Localhost cannot be opened remotely by judges. Supply an accessible recording and suitable source-code access without publishing the application.
@@ -40,7 +40,7 @@ The generic development environment and launcher were prepared before kickoff. D
 - Genuine Wispr evidence clip(s): not supplied yet.
 - Private source repository: https://github.com/devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31
 - Judge code access: not verified; do not assume judges can access a private repository.
-- Live tracker demonstration issue URL: not created in this preparation.
+- Live tracker demonstration issue URL: https://github.com/devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31/issues/1 (one fictional issue, created with explicit user approval).
 - Team name and primary-member contact details: user to complete in the authenticated form.
 
 Previously recorded project portal: https://theproductspace.in/user-dashboard/submissions/agentic-ai-hackathons
