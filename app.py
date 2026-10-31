@@ -595,12 +595,15 @@ elif page == 'Connections':
                         st.session_state['local_models'] = available_local_models()
                 models = st.session_state.get('local_models', [])
                 if models:
-                    model = st.selectbox('Installed model', models)
+                    preferred_model = st.session_state.get('ollama_model')
+                    model = st.selectbox('Installed model', models, index=models.index(preferred_model) if preferred_model in models else 0)
                     if st.button('Use this local model', type='primary'):
                         st.session_state['ollama_model'] = model
                         st.session_state['analysis_engine'] = 'ollama'
                         save_engine_preference('ollama', model)
                         st.success('Local model selected. The next analysis will use it; connection success is verified only by a completed analysis.')
+                elif st.session_state.get('ollama_model') and 'local_models' not in st.session_state:
+                    st.info('Saved model: '+st.session_state['ollama_model']+'. Check local models to refresh availability.')
                 else:
                     st.warning('No local model detected yet. Offline rules remain available. No paid provider is configured.')
             st.caption('No API key fields, cloud billing, or automatic fallback to a different provider.')
