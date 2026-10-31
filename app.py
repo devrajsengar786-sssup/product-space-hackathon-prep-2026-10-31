@@ -16,12 +16,13 @@ from decisiondesk.samples import get_demo_meetings
 from decisiondesk.store import Store
 from decisiondesk.features import calendar_export
 from decisiondesk.workspaces import Workspaces
+from decisiondesk.assistant import MODES, assist, workspace_sources, select_sources, fingerprint, clarify_tasks, export_answer
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('DECISIONDESK_DB_PATH', str(ROOT / 'data' / 'decisiondesk.sqlite3')))
 TODAY = date.today()
 DEFAULT_REPO = 'devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31'
-PAGES = ['Overview', 'Capture meeting', 'Review & approve', 'Action board', 'Decision memory', 'Search memory', 'Timeline & changes', 'Weekly digest', 'Team insights', 'Workspace settings', 'Connections']
+PAGES = ['Overview', 'AI Assistant', 'Capture meeting', 'Review & approve', 'Action board', 'Decision memory', 'Search memory', 'Timeline & changes', 'Weekly digest', 'Team insights', 'Workspace settings', 'Connections']
 
 st.set_page_config(page_title='DecisionDesk · Meetings that move work', page_icon='◈', layout='wide')
 st.markdown('<style>' + (ROOT / 'decisiondesk' / 'theme.css').read_text(encoding='utf-8') + '</style>', unsafe_allow_html=True)
@@ -114,7 +115,7 @@ with st.sidebar:
     st.markdown('<div class="eyebrow">Your workspace</div>', unsafe_allow_html=True)
     st.selectbox('Project workspace', [w['id'] for w in workspace_options],
                  format_func=lambda wid: next(w['name'] for w in workspace_options if w['id']==wid), key='workspace_picker')
-    page = st.radio('Workspace navigation', PAGES, key='navigation', label_visibility='collapsed')
+    page = st.radio('Workspace navigation', PAGES, key='navigation', label_visibility='collapsed', format_func=lambda name: {'Overview':'Dashboard','Connections':'AI & connections'}.get(name,name))
     st.divider()
     st.markdown(badge('LOCAL AI' if st.session_state.get('analysis_engine') == 'ollama' else 'RULES MODE', gray=True), unsafe_allow_html=True)
     st.caption('Local AI selected' if st.session_state.get('analysis_engine') == 'ollama' else 'No AI model connected. Rules mode is available for workflow testing.')
@@ -124,52 +125,145 @@ if st.session_state.pop('flash', None):
     st.success('Saved. Your workspace is up to date.')
 
 if page == 'Overview':
-    header('Workspace / Overview', 'Meetings end. Decisions shouldn’t.',
-           'Turn the conversation into clear next steps, catch changing decisions, and keep everyone moving.')
-    c1, c2 = st.columns([4, 2])
-    with c1:
-        st.markdown(badge('Personal workspace') + badge('Approval before posting', True), unsafe_allow_html=True)
-    with c2:
-        if st.button('＋ Capture a meeting', type='primary', width='stretch'):
-            jump('Capture meeting')
-    stats = store.stats()
-    metric_cards = ''.join(f'<div class="summary-card"><span class="summary-symbol">{symbol}</span><span>{label}</span><strong>{stats.get(key,0)}</strong></div>' for label,key,symbol in [('Meetings','meetings','◉'),('Decisions saved','decisions','◎'),('Open actions','open_actions','▤'),('Overdue','overdue','◷')])
-    st.markdown('<div class="summary-grid">'+metric_cards+'</div>', unsafe_allow_html=True)
-    st.write('')
-    left, right = st.columns([1.7, 1])
+    header('Workspace / Dashboard', 'Your work, at a glance.',
+           'Review new meetings, see what needs attention, and keep the next steps moving.')
+    meetings=store.list_meetings()
+    actions=store.decorate_actions(store.list_actions())
+    drafts=[m for m in meetings if m['status']=='draft']
+    open_tasks=[a for a in actions if a['status'] in ('approved','published')]
+    overdue=[a for a in open_tasks if a.get('due_date') and a['due_date']<TODAY.isoformat()]
+    completed=[a for a in actions if a['status']=='done']
+    metrics=[('Meetings to review',len(drafts),'◎'),('Open tasks',len(open_tasks),'▤'),('Overdue tasks',len(overdue),'◷'),('Completed tasks',len(completed),'✓')]
+    cards=''.join(f'<div class="summary-card"><span class="summary-symbol">{symbol}</span><span>{label}</span><strong>{value}</strong></div>' for label,value,symbol in metrics)
+    st.markdown('<div class="summary-grid">'+cards+'</div>',unsafe_allow_html=True)
+    a,b,c=st.columns(3)
+    if a.button('＋ Capture a meeting',type='primary',width='stretch'):jump('Capture meeting')
+    if b.button('Ask your meetings',width='stretch'):
+        st.session_state['assistant_mode']='Ask your meetings';jump('AI Assistant')
+    if c.button('Prepare a meeting brief',width='stretch'):
+        st.session_state['assistant_mode']='Meeting brief';jump('AI Assistant')
+    left,right=st.columns([1.35,1])
     with left:
-        with st.container(key='desk_hero'):
-            st.markdown('<div class="eyebrow">LESS FOLLOW-UP. MORE FOLLOW-THROUGH.</div><h2>Your next meeting.<br>Already moving forward.</h2><p>Catch changing decisions, give every next step an owner, and turn agreement into action.</p>', unsafe_allow_html=True)
-            if st.button('Start a meeting →', key='hero_capture', type='primary'):
-                jump('Capture meeting')
-        st.subheader('Recent meetings')
-        meetings = store.list_meetings()
-        if not meetings:
-            empty('Make the first conversation count', 'Capture your own discussion or explore two fictional meetings to see decision memory in action.')
-        for meeting in meetings[:5]:
+        st.subheader('Needs your attention')
+        st.caption('Start here. Drafts do not change saved decisions or approved tasks.')
+        if not drafts and not overdue and not any(a['blocked_by'] for a in open_tasks):
+            empty('You’re up to date','No meetings await review and no approved tasks are overdue or blocked.')
+        for m in drafts[:3]:
             with st.container(border=True):
-                st.markdown(f"**{meeting['title']}**")
-                st.markdown(badge(str(meeting.get('status','draft')).title(), True) + f'<span class="small">{escape(meeting["meeting_date"])}</span>', unsafe_allow_html=True)
-                analysis = meeting.get('analysis', {})
-                if isinstance(analysis, str):
-                    analysis = json.loads(analysis)
-                st.write(analysis.get('summary', 'Ready for review.'))
-                if st.button('Open review →', key=f"overview_{meeting['id']}"):
-                    st.session_state['selected_meeting'] = meeting['id']
-                    jump('Review & approve')
+                st.markdown(badge('Review needed'),unsafe_allow_html=True)
+                st.write('**'+m['title']+'**')
+                st.caption(f"{m['meeting_date']} · Check decisions, owners and deadlines")
+                if st.button('Review meeting →',key=f"attention_{m['id']}"):
+                    st.session_state['selected_meeting']=m['id'];jump('Review & approve')
+        for a in overdue[:3]:
+            st.markdown(f'<div class="attention-row"><b>{escape(a["title"])}</b><span>Overdue · {escape(a["owner"])} · {escape(a["due_date"])}</span></div>',unsafe_allow_html=True)
+        blocked=sum(bool(a['blocked_by']) for a in open_tasks)
+        if blocked:st.warning(f'{blocked} open task(s) are waiting on dependencies.')
+        if overdue or blocked:
+            if st.button('Manage tasks →'):jump('Action board')
+        st.subheader('Recent meetings')
+        if not meetings:
+            empty('No meetings yet','Capture a conversation or load a fictional sample from Capture meeting.')
+        for m in meetings[:4]:
+            with st.container(border=True):
+                st.write('**'+m['title']+'**')
+                st.caption(m['meeting_date']+' · '+('Needs review' if m['status']=='draft' else 'Approved'))
+                if st.button('Open meeting →',key=f"recent_{m['id']}"):
+                    st.session_state['selected_meeting']=m['id'];jump('Review & approve')
     with right:
-        ready_count = len([a for a in store.list_actions() if a['status'] in ('approved', 'published')])
-        st.markdown(f'<div class="panel readiness-panel"><div class="card-title">Nothing moves without your say.</div><div class="card-body">Review the source, resolve the change, then approve the next step.</div><div class="readiness-total">{ready_count:02d}<span>approved actions</span></div>{badge("Human approval required", True)}</div>', unsafe_allow_html=True)
-        st.subheader('Coming up')
-        due = store.due_actions(TODAY.isoformat(), days=7)
-        if not due:
-            empty('A little breathing room', 'Approved actions due in the next seven days will appear here.')
-        for action in due[:4]:
-            st.markdown(f'<div class="panel"><div class="card-title">{escape(action["title"])}</div><div class="card-meta">{escape(action.get("owner") or "Unassigned")} · Due {escape(action.get("due_date") or "No date")}</div></div>', unsafe_allow_html=True)
-        st.markdown('<div class="strip"><b>The memory test</b><br>Save the planning demo first, then capture its follow-up. DecisionDesk will flag the changed launch date.</div>', unsafe_allow_html=True)
-        if st.button('Try the two-meeting demo', width='stretch'):
-            st.session_state['sample_choice'] = 'Planning meeting'
-            jump('Capture meeting')
+        st.subheader('Next deadlines')
+        upcoming=sorted([a for a in open_tasks if a.get('due_date') and TODAY.isoformat()<=a['due_date']<=(TODAY+timedelta(days=7)).isoformat()],key=lambda a:a['due_date'])
+        st.caption('Approved open work due today or in the next seven days.')
+        if not upcoming:empty('No deadlines this week','Tasks appear here after you review and approve a meeting plan.')
+        for a in upcoming[:5]:
+            st.markdown(f'<div class="panel"><div class="card-title">{escape(a["title"])}</div><div class="card-meta">{escape(a["owner"])} · Due {escape(a["due_date"])}</div></div>',unsafe_allow_html=True)
+        st.subheader('Current decisions')
+        current=store.list_decisions()
+        if not current:st.caption('Approved meeting decisions will appear here.')
+        for d in current[:3]:
+            with st.container(border=True):
+                st.write('**'+d['topic'].title()+'**');st.write(d['statement'])
+        if current and st.button('See decision history →'):jump('Timeline & changes')
+        with st.expander('How DecisionDesk works'):
+            st.write('1. Capture a conversation. 2. Review AI suggestions and fill missing details. 3. Approve locally. 4. Track the work or explicitly publish selected tasks.')
+            st.caption('AI Assistant can answer questions and prepare drafts. It does not change your workspace or send messages.')
+
+elif page == 'AI Assistant':
+    header('Workspace / AI Assistant','From meeting memory to a useful next step.',
+           'Ask questions, prepare for meetings, and draft your follow-through with evidence from this workspace.')
+    mode=st.selectbox('What would you like help with?',list(MODES),key='assistant_mode')
+    descriptions={
+        'Ask your meetings':'Ask what was decided, why something changed, or who committed to a task.',
+        'Meeting brief':'Prepare an agenda from current decisions, open work and unanswered questions.',
+        'Clarify missing details':'Find questions to resolve before you approve a meeting plan.',
+        'Follow-up draft':'Draft a meeting update. Edit it and download it; nothing is sent automatically.',
+        'Break down a task':'Suggest smaller steps and an order of work. Suggestions do not create tasks.',
+        'Risk suggestions':'Review possible delivery concerns. These are suggestions, not predictions.'}
+    st.info(descriptions[mode])
+    all_sources=workspace_sources(store)
+    meeting_id=None;task_id=None
+    if mode=='Risk suggestions' and not any(source['id'].startswith('R') for source in all_sources):
+        st.success('No overdue, incomplete, blocked, or conflicting-decision flags were found. This does not establish that delivery is risk-free.')
+    if mode in ('Follow-up draft','Clarify missing details'):
+        available_meetings=store.list_meetings()
+        if available_meetings:
+            meeting_id=st.selectbox('Source meeting',[m['id'] for m in available_meetings],format_func=lambda mid:next(m['title']+' · '+m['status'] for m in available_meetings if m['id']==mid),key='assistant_meeting')
+    if mode=='Break down a task':
+        available_tasks=[a for a in store.list_actions() if a['status'] in ('approved','published')]
+        if available_tasks:
+            task_id=st.selectbox('Task to break down',[a['id'] for a in available_tasks],format_func=lambda aid:next(a['title'] for a in available_tasks if a['id']==aid),key='assistant_task')
+        else:st.warning('Approve an open task before asking for a breakdown.')
+    if mode=='Clarify missing details' and meeting_id is not None:
+        gaps=clarify_tasks(store.list_actions(meeting_id))
+        if gaps:
+            st.subheader('Missing details found')
+            for gap in gaps:st.write('**'+gap['title']+'** — '+gap['question'])
+            st.caption('These field checks do not use AI. Ask below for additional source-based questions, then enter confirmed answers in the meeting review.')
+        if st.button('Open meeting review →'):
+            st.session_state['selected_meeting']=meeting_id;jump('Review & approve')
+    local_ready=st.session_state.get('analysis_engine')=='ollama' and bool(st.session_state.get('ollama_model'))
+    if not local_ready:
+        st.warning('Select a local AI model in AI & connections to generate assistance. No rules-based answer will be presented as AI.')
+        if st.button('Set up local AI →'):jump('Connections')
+    with st.form('assistant_request'):
+        query=st.text_area('Your question' if mode=='Ask your meetings' else 'Focus or extra instructions (optional)',max_chars=2000,key='assistant_query_'+mode,placeholder='e.g. Why did the launch date change?' if mode=='Ask your meetings' else 'e.g. Focus on launch readiness and unanswered questions')
+        generate=st.form_submit_button({'Ask your meetings':'Ask AI','Meeting brief':'Prepare brief','Clarify missing details':'Suggest clarification questions','Follow-up draft':'Draft follow-up','Break down a task':'Suggest task steps','Risk suggestions':'Review possible risks'}[mode],type='primary',disabled=not local_ready or not all_sources or (mode=='Break down a task' and task_id is None) or (mode=='Risk suggestions' and not any(source['id'].startswith('R') for source in all_sources)))
+    sources=select_sources(all_sources,query,mode,meeting_id,task_id)
+    scope=fingerprint(sources)+mode+query+str(meeting_id)+str(task_id)+st.session_state.get('ollama_model','')
+    result_key=hashlib.sha256(scope.encode()).hexdigest()
+    if generate:
+        st.session_state.pop('assistant_result',None)
+        if mode=='Ask your meetings' and len(query.strip())<3:st.error('Enter a question first.')
+        else:
+            try:
+                with st.spinner('Reading selected sources with local AI… This may take a minute.'):
+                    result=assist(mode,query or descriptions[mode],sources,model=st.session_state['ollama_model'],as_of=TODAY.isoformat())
+                st.session_state['assistant_result']={'key':result_key,'result':result}
+            except AnalysisError as error:st.error(str(error))
+    if not all_sources:empty('Start with a conversation','Capture a meeting first. The assistant uses only sources in the selected project workspace.')
+    if sources:
+        with st.expander(f'Sources available for this request · {len(sources)} selected excerpts'):
+            st.caption('This is a bounded selection, not a search of every word. Try a specific topic or name if an answer is missing.')
+            for source in sources:
+                st.caption(source['id']+' · '+source['title']+' · '+source['status']);st.text(source['text'])
+    saved=st.session_state.get('assistant_result',{})
+    if saved.get('key')==result_key:
+        result=saved['result']
+        st.subheader('AI draft · review before using')
+        st.caption('Quotes are checked against selected sources. AI interpretations and proposed steps can still be wrong. Nothing has been approved, created or sent.')
+        if result['omitted']:st.warning(f"{result['omitted']} unsupported item(s) were omitted because their citations could not be verified.")
+        if not result['items']:st.info('No supported answer was returned. Try a more specific question or another source meeting.')
+        for index,item in enumerate(result['items']):
+            with st.container(border=True):
+                st.write(item['text'])
+                st.caption(item['source_id']+' · '+item['source']['title']+' · '+item['source']['status'])
+                st.text('“'+item['quote']+'”')
+                if st.button('Open source meeting →',key=f'assistant_source_{result_key}_{index}'):
+                    st.session_state['selected_meeting']=item['source']['meeting_id'];jump('Review & approve')
+        if result['unanswered']:st.warning('Still unclear: '+result['unanswered'])
+        if result['items']:
+            st.text_area('Edit your draft',value=export_answer(result),height=260,key='assistant_edit_'+result_key)
+            st.download_button('Download edited draft',st.session_state['assistant_edit_'+result_key],'decisiondesk-'+mode.lower().replace(' ','-')+'.md','text/markdown')
 
 elif page == 'Capture meeting':
     header('Workspace / Capture', 'Start with the conversation.',

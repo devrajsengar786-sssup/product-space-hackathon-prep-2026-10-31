@@ -62,7 +62,7 @@ From this folder:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-On **31 October 2026, all 53 automated checks passed**: 15 extraction/provider-boundary tests, 22 persistence/tracker-adapter tests, 12 workspace-feature tests, and 4 Streamlit UI workflow tests. GitHub calls and Ollama responses in those tests were mocked; they do not establish a working live integration.
+On **31 October 2026, all 66 automated checks passed**: 15 extraction/provider-boundary tests, 22 persistence/tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, and 5 Streamlit UI workflow tests. GitHub calls and Ollama responses in those tests were mocked; they do not establish a working live integration.
 
 A local browser check also loaded the fictional planning meeting, extracted its results, and opened the review screen with source evidence and owner/date warnings. No approval was clicked in that browser check. No GitHub issue or Wispr recording was made. The later local AI smoke check used only fictional text on this computer. Full details and remaining live checks are in `PROJECT-NOTES.md`.
 
@@ -87,3 +87,16 @@ Create isolated local project workspaces from Workspace settings. Download a JSO
 
 
 To repeat the optional live local-model check, run `.\.venv\Scripts\python.exe verify_local_ai.py` with Ollama running and Qwen3 1.7B installed. It uses fictional text, checks extracted categories/owner/deadline, records local results under ignored `data/`, and selects the model only after passing. It does not approve a meeting or create issues. Model request format follows the [official Ollama chat API](https://docs.ollama.com/api/chat).
+
+
+## AI Assistant and clearer dashboard
+
+The dashboard prioritizes meetings needing review, open tasks, overdue tasks and completed work. Attention items link directly to review; the next-deadline view excludes overdue work, which is shown separately. Capture, Ask your meetings and Meeting brief are one click away.
+
+AI Assistant adds six local-model tools: meeting questions, agenda briefs, missing-detail questions, editable follow-up drafts, suggested task steps and possible delivery risks. Meeting-specific tools let you select the meeting; task breakdown uses an approved open task. Missing-owner/deadline field checks are identified separately from AI output.
+
+Answers are generated from up to ten selected excerpts within a bounded context, using simple keyword ranking and source-type diversity. This is not exhaustive semantic search. Every retained item needs a known source ID and an exact quote from the supplied source; unverifiable citations are omitted. Quotes establish where the text came from, not that an AI interpretation is correct. Draft/current/superseded statuses are shown beside citations. Sources link back to meeting review. Drafts can be edited and downloaded; no assistant tool approves meetings, creates tasks, updates memory or sends messages. Switching context hides older answers.
+
+The automated suite includes citation rejection, scope isolation, local-provider boundaries, unchanged storage and all six UI modes. `assistant_smoke.py` exercises all six tools against fictional temporary data using the installed Qwen3 1.7B model, saving results under ignored `data/`. Run this optional check only with local Ollama available. Compact-model suggestions need human review; no production accuracy claim is made.
+
+Risk assistance is restricted to detected source flags (overdue, incomplete, blocked or draft-conflicting work); when none exist it does not invent a risk report. Clarification filtering omits questions about known owners, dates and status. AI interpretations still require review.

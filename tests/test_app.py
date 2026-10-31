@@ -88,6 +88,33 @@ class AppWorkflowTests(unittest.TestCase):
         self.assert_no_exception()
         self.assertTrue(any(b.label=='Mark done' for b in self.app.button))
 
+    def test_assistant_modes_render_and_cited_answer_stays_a_draft(self):
+        from decisiondesk.assistant import MODES, workspace_sources
+        import json
+        self.capture_sample('Load planning meeting')
+        self.approve()
+        store=Store(self.db)
+        before=json.loads(store.export_backup())['tables']
+        self.app.session_state['analysis_engine']='ollama'
+        self.app.session_state['ollama_model']='test-model'
+        self.page('AI Assistant')
+        mode_widget=lambda: next(w for w in self.app.selectbox if w.label=='What would you like help with?')
+        for mode in MODES:
+            mode_widget().set_value(mode).run(timeout=30)
+            self.assert_no_exception()
+        mode_widget().set_value('Ask your meetings').run(timeout=30)
+        source=next(s for s in workspace_sources(store) if s['id'].startswith('D'))
+        response={'message':{'content':json.dumps({'items':[{'text':'The launch decision is available for review.','source_id':source['id'],'quote':source['text'][:35]}],'unanswered':''})}}
+        next(w for w in self.app.text_area if w.label=='Your question').set_value('What is the launch date?')
+        with patch('decisiondesk.assistant._request_json',return_value=response):
+            self.button('Ask AI').click().run(timeout=30)
+        self.assert_no_exception()
+        self.assertTrue(any(w.label=='Edit your draft' for w in self.app.text_area))
+        self.assertTrue(any(b.label=='Open source meeting →' for b in self.app.button))
+        self.assertEqual(before,json.loads(store.export_backup())['tables'])
+        mode_widget().set_value('Meeting brief').run(timeout=30)
+        self.assertFalse(any(w.label=='Edit your draft' for w in self.app.text_area))
+
     def test_empty_capture_keeps_user_on_form(self):
         self.page('Capture meeting')
         self.button('Find decisions & actions →').click().run(timeout=30)

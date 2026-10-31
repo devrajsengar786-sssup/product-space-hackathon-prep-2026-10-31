@@ -54,7 +54,7 @@ Run from the project folder:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-**31 October 2026: the complete automated suite passed — 53 tests.** The breakdown is 15 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, 12 workspace-feature tests, and 4 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
+**31 October 2026: the complete automated suite passed — 66 tests.** The breakdown is 15 extraction/local-provider-boundary tests, 22 SQLite/store and mocked tracker-adapter tests, 12 workspace-feature tests, 12 assistant tests, and 5 Streamlit UI workflow tests. Tests use fictional inputs and temporary databases.
 
 Covered and passing:
 
@@ -96,3 +96,10 @@ Professional features added 31 October: isolated project workspaces; local backu
 
 
 Local AI setup completed: official installer signature verified as Ollama Inc.; model files obtained from the official Ollama registry and SHA-256 checked before installation. Installed Qwen3 0.6B and 1.7B; selected 1.7B after the smaller model overclassified dated commitments. Improved source validation filters clear task promises out of decision memory and explains omissions. Live verification checked one decision, one action, its named owner/deadline, and source evidence. Timing is one machine/sample observation only. Local inference is free of paid API calls; downloading the app/model required network access. No claims of production readiness or real meeting accuracy are made.
+
+
+AI assistance expansion, 31 October: six read-only tools with bounded workspace retrieval and exact-quote source validation; editable exports and source meeting links; field-based missing-detail questions; a dashboard oriented around reviews, deadlines and open work. Twelve backend tests cover citations, failure behavior, selection/scope and no writes. A UI test renders all six modes, generates a mocked cited draft and verifies context switching hides stale output. No assistant result automatically changes workspace records or sends a message. Local live checks use fictional temporary meetings, separately from automated mock-based tests.
+
+Live local AI verification: all six assistant modes returned at least one item with a validated source ID and verbatim quote on a fictional approved meeting, using Qwen3 1.7B. Observed single-run response times were 5.2–16.5 seconds. These checks establish a working local inference path and citation plumbing, not general answer accuracy or task feasibility. No persistent user meeting data was modified.
+
+Risk assistance is restricted to detected source flags (overdue, incomplete, blocked or draft-conflicting work); when none exist it does not invent a risk report. Clarification filtering omits questions about known owners, dates and status. AI interpretations still require review.

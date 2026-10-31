@@ -257,3 +257,13 @@ html, body, .stApp { color: var(--desk-ink); background: var(--desk-canvas); }
 .summary-card strong {grid-column:1;color:#112039;font-size:28px;line-height:1.1;}
 @media(max-width:1000px){.summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:420px){.summary-card{padding:13px;}.summary-card .summary-symbol{padding:7px;}}
+
+/* Dashboard: clear priorities, restrained emphasis, and readable source cards. */
+.attention-row{padding:14px 16px;border-left:3px solid #ce6b34;border-radius:8px;background:#fff7ef;margin-bottom:10px;}
+.attention-row b{display:block;color:#623b25;font-size:13px;}.attention-row span{display:block;color:#8a644f;font-size:12px;margin-top:5px;}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(2)::before{content:"✦";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(3)::before{content:"◉";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(4)::before{content:"✓";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(5)::before{content:"▤";}
+[data-testid="stSidebar"] [data-testid="stRadioOption"]:nth-of-type(7)::before{content:"⌕";}
+@media(max-width:800px){[data-testid="stMain"] [data-testid="stColumn"]{min-width:min(100%,320px);}}
