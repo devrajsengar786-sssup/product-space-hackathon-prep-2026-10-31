@@ -108,3 +108,8 @@ Finished sessions are read-only. Use finished notes for AI review prefills Captu
 
 
 Navigation simplified to seven sections: Dashboard, New meeting, Meeting memory, Tasks, AI Assistant, Reports and Settings. New meeting groups Paste transcript and Live notes; Meeting memory groups Search, Decisions, History and Review meetings; Reports groups Weekly digest and Team insights; Settings groups Workspace and Connections. Related tools render only when selected, so inactive connection controls do not change the analysis preference. Existing in-app links route to the correct section and local view. No stored meeting data, live sessions or tools were deleted. Tests cover route completeness, migration from old navigation state and review/capture/task workflows through the grouped views.
+
+
+## Demo and submission preparation
+
+See `docs/submission-pack/README.md` for the timed three-minute demo, contribution disclosure, submission draft, review-only LinkedIn drafts and genuine Wispr recording checklist. `rehearse_demo.py` optionally runs two live local-AI extractions against fictional content and seeds a separate labelled rehearsal workspace after the checks pass. It never posts issues or messages. Existing nonempty rehearsal data is preserved. Scripted fixture approval is explicitly labelled and must not be represented as a live user review or Wispr evidence.
