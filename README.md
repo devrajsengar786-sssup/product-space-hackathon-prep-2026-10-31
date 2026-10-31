@@ -1,6 +1,12 @@
 # DecisionDesk
 
-DecisionDesk is a hackathon prototype for Problem 3: turn meeting notes into reviewable decisions and action items, keep accepted memory across meetings, and flag changes before updating that memory. The included Atlas meetings are fictional. The user requested **localhost-only operation**; no hosted deployment is part of this project.
+DecisionDesk is a hackathon prototype for Problem 3: turn meeting notes into reviewable decisions and action items, keep accepted memory across meetings, and flag changes before updating that memory. The included Atlas meetings are fictional.
+
+## Public demo status — 31 October 2026
+
+The user authorized a separate, free public demo after initially requesting localhost-only operation. [Open the temporary live demo](https://edited-greatest-combinations-council.trycloudflare.com). The host computer must stay awake and online, with the app, tunnel and Ollama running; this is **not always-on cloud hosting**. Use the recorded submission video if the live link is unavailable.
+
+The demo isolates visitor workspaces, uses clearly labelled fictional fixtures and disables GitHub credential checks/publishing at the integration boundary. AI inference still runs on the host computer with Ollama/Qwen3 1.7B. Do not submit private meeting content. See [public demo operation and limits](docs/Public-demo.md). The ordinary localhost app remains available separately. All 84 automated checks passed after these changes, including public-mode isolation and publishing guards.
 
 ## Run locally
 

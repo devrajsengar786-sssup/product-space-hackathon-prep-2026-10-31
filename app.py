@@ -18,16 +18,24 @@ from decisiondesk.features import calendar_export
 from decisiondesk.workspaces import Workspaces
 from decisiondesk.navigation import SECTIONS, VIEW_KEYS, apply_destination, route_for
 from decisiondesk.live import LiveMeetings, elapsed, export_notes, FIELDS
+from decisiondesk.public_demo import enabled as public_demo_enabled, session_database, seed_fictional_workspace
 from decisiondesk.assistant import MODES, assist, workspace_sources, select_sources, fingerprint, clarify_tasks, export_answer
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('DECISIONDESK_DB_PATH', str(ROOT / 'data' / 'decisiondesk.sqlite3')))
+PUBLIC_DEMO = public_demo_enabled()
+if PUBLIC_DEMO:
+    DB_PATH = session_database(st.session_state, ROOT / 'data' / 'public-demo')
+    st.session_state.setdefault('analysis_engine', 'ollama')
+    st.session_state.setdefault('ollama_model', 'qwen3:1.7b')
 TODAY = date.today()
 DEFAULT_REPO = 'devrajsengar786-sssup/product-space-hackathon-prep-2026-10-31'
 PAGES = list(SECTIONS)
 
 st.set_page_config(page_title='DecisionDesk · Meetings that move work', page_icon='◈', layout='wide')
 st.markdown('<style>' + (ROOT / 'decisiondesk' / 'theme.css').read_text(encoding='utf-8') + '</style>', unsafe_allow_html=True)
+if PUBLIC_DEMO:
+    st.info('Public demo · Use fictional data only. Each browser session has a separate workspace on the host computer. AI runs on that computer; GitHub publishing is disabled. Download anything you want to keep before leaving. Included examples are scripted sample setup, not real meetings or AI evidence.')
 
 PREFERENCES_PATH = DB_PATH.parent / 'preferences.json'
 try:
@@ -53,12 +61,14 @@ active_workspace = st.session_state.get('workspace_picker', 'main')
 if active_workspace not in {w['id'] for w in workspace_options}:
     active_workspace = 'main'
 if st.session_state.get('active_workspace', 'main') != active_workspace:
-    retained = {'workspace_picker','navigation','analysis_engine','ollama_model','local_models'}
+    retained = {'workspace_picker','navigation','analysis_engine','ollama_model','local_models','public_demo_id'}
     for state_key in list(st.session_state):
         if state_key not in retained:
             del st.session_state[state_key]
 st.session_state['active_workspace'] = active_workspace
 store = Store(catalog.path(active_workspace))
+if PUBLIC_DEMO and active_workspace == 'main':
+    seed_fictional_workspace(store, date.today().isoformat())
 if 'jump_to' in st.session_state:
     apply_destination(st.session_state, st.session_state.pop('jump_to'))
 elif st.session_state.get('navigation', 'Dashboard') not in SECTIONS:
@@ -81,7 +91,8 @@ def header(kicker, title, description):
     subsection = kicker.split('/')[-1].strip()
     section = current_section + (' / ' + subsection if subsection != current_section else '')
     kicker = section
-    st.markdown(f'<div class="desk-topbar"><div class="breadcrumb">DecisionDesk <span>/</span> <b>{escape(section)}</b></div><div class="desk-status"><i class="desk-dot"></i> LOCAL WORKSPACE</div></div>', unsafe_allow_html=True)
+    status = 'PUBLIC DEMO' if PUBLIC_DEMO else 'LOCAL WORKSPACE'
+    st.markdown(f'<div class="desk-topbar"><div class="breadcrumb">DecisionDesk <span>/</span> <b>{escape(section)}</b></div><div class="desk-status"><i class="desk-dot"></i> {status}</div></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="eyebrow">{escape(kicker)}</div>', unsafe_allow_html=True)
     st.title(title)
     st.markdown(f'<div class="sub">{escape(description)}</div>', unsafe_allow_html=True)
@@ -128,7 +139,9 @@ with st.sidebar:
     st.divider()
     st.markdown(badge('LOCAL AI' if st.session_state.get('analysis_engine') == 'ollama' else 'RULES MODE', gray=True), unsafe_allow_html=True)
     st.caption('Local AI selected' if st.session_state.get('analysis_engine') == 'ollama' else 'No AI model connected. Rules mode is available for workflow testing.')
-    st.markdown('<div class="sidebar-note"><strong>Every decision, accounted for.</strong><p>Your meeting memory stays on this computer. External tasks need your approval.</p></div><div class="sidebar-profile"><span class="profile-avatar">DD</span><div><strong>Your workspace</strong><small>Local access only</small></div></div>', unsafe_allow_html=True)
+    sidebar_note = 'Fictional data only. Your temporary workspace is separate from other visitors. GitHub publishing is disabled.' if PUBLIC_DEMO else 'Your meeting memory stays on this computer. External tasks need your approval.'
+    sidebar_access = 'Public demo session' if PUBLIC_DEMO else 'Local access only'
+    st.markdown(f'<div class="sidebar-note"><strong>Every decision, accounted for.</strong><p>{sidebar_note}</p></div><div class="sidebar-profile"><span class="profile-avatar">DD</span><div><strong>Your workspace</strong><small>{sidebar_access}</small></div></div>', unsafe_allow_html=True)
 
 views = SECTIONS[current_section]
 if len(views) > 1:
@@ -367,7 +380,7 @@ elif page == 'AI Assistant':
 
 elif page == 'Capture meeting':
     header('Workspace / Capture', 'Start with the conversation.',
-           'Dictate with Wispr Flow into the meeting field, type, or paste a speaker-labelled transcript. Your input stays local in this workspace.')
+           'Use fictional speaker-labelled notes. Input is stored in your temporary session on the host computer.' if PUBLIC_DEMO else 'Dictate with Wispr Flow into the meeting field, type, or paste a speaker-labelled transcript. Your input stays local in this workspace.')
     st.markdown('<div class="step"><b>01 Capture</b>　→　02 Review decisions　→　03 Approve actions　→　04 Follow through</div>', unsafe_allow_html=True)
     left, right = st.columns([2.2, 1])
     samples = get_demo_meetings(TODAY.isoformat())
@@ -396,7 +409,7 @@ elif page == 'Capture meeting':
                 st.rerun()
         st.markdown('<div class="panel"><div class="card-title">Make room for real speech</div><div class="card-body">Click the meeting field, then use your Wispr Flow shortcut. Include speaker names when the speaker changes. You can say corrections naturally.</div><div class="small">Typing remains available as an accessibility option. Organizer approval for typing-only participation is still unconfirmed.</div></div>', unsafe_allow_html=True)
         engine = st.session_state.get('analysis_engine', 'offline')
-        st.caption('Analysis: local Ollama model. No cloud requests.' if engine == 'ollama' else 'Analysis: offline rules. This is not a live AI model.')
+        st.caption(('Analysis: Ollama on the host computer. Your text travels through the public demo connection.' if PUBLIC_DEMO else 'Analysis: local Ollama model. No cloud requests.') if engine == 'ollama' else 'Analysis: offline rules. This is not a live AI model.')
         if st.button('Manage connections'):
             jump('Connections')
     with left:
@@ -579,7 +592,9 @@ elif page == 'Action board':
     st.subheader('Publish approved tasks to GitHub')
     st.caption('Workspace-wide approval queue, independent of the board filters above.')
     approved = [a for a in actions if a['status'] == 'approved']
-    if not approved:
+    if PUBLIC_DEMO:
+        st.info('GitHub publishing is disabled in the public demo. Task tracking and exports remain available.')
+    elif not approved:
         st.caption('Approve actions in a meeting review before publishing. Previously published actions are never posted again automatically.')
     else:
         repo = st.text_input('Destination repository (owner/name)', value=st.session_state.get('github_repo', DEFAULT_REPO))
@@ -807,7 +822,9 @@ elif page == 'Connections':
             st.subheader('GitHub Issues')
             st.write('Approved actions can become real issues through your existing GitHub sign-in.')
             st.code(st.session_state.get('github_repo', DEFAULT_REPO), language=None)
-            if st.button('Check GitHub connection'):
+            if PUBLIC_DEMO:
+                st.info('GitHub credentials and publishing are unavailable to public demo visitors.')
+            elif st.button('Check GitHub connection'):
                 with st.spinner('Checking existing sign-in…'):
                     result = github_status()
                 (st.success if result.get('available') else st.warning)(result.get('message','Connection check complete.'))

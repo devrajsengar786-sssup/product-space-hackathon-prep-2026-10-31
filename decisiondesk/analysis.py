@@ -119,6 +119,23 @@ def _resolve_date(text: str, reference: date, warnings: list[str]) -> str:
                 _warning(warnings, 'Slash dates use day/month/year. Confirm any ambiguous date.')
         except ValueError:
             _warning(warnings, 'An invalid calendar date was found; review it manually.')
+    # Dictation often spells out month names and ordinal days. Keep the
+    # original evidence intact while validating the model's ISO dates.
+    month_names = 'January February March April May June July August September October November December'.split()
+    ordinals = 'first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth twenty-first twenty-second twenty-third twenty-fourth twenty-fifth twenty-sixth twenty-seventh twenty-eighth twenty-ninth thirtieth thirty-first'.split()
+    day_words = {word.replace('-', ''): index for index, word in enumerate(ordinals, 1)}
+    day_pattern = '|'.join(word.replace('-', '[- ]?') for word in sorted(ordinals, key=len, reverse=True))
+    pattern = r'\b(' + '|'.join(month_names) + r')\s+(' + day_pattern + r'|\d{1,2}(?:st|nd|rd|th)?)(?:,\s*|\s+)(\d{4})\b'
+    for match in re.finditer(pattern, text, re.I):
+        day_text = match.group(2).lower()
+        day_number = day_words.get(re.sub(r'[- ]', '', day_text))
+        if day_number is None:
+            day_number = int(re.match(r'\d+', day_text).group())
+        try:
+            month_number = next(i for i, name in enumerate(month_names, 1) if name.lower() == match.group(1).lower())
+            candidates.append((match.start(), date(int(match.group(3)), month_number, day_number).isoformat()))
+        except ValueError:
+            _warning(warnings, 'An invalid calendar date was found; review it manually.')
     for match in re.finditer(r'\b(today|tomorrow)\b', text, re.I):
         candidates.append((match.start(), (reference + timedelta(
             days=match.group(1).lower() == 'tomorrow')).isoformat()))
@@ -157,7 +174,7 @@ def _decision(body: str, evidence: str, reference: date, warnings: list[str]) ->
         return None
     statement = _clean(body[cue.end():])
     # A line may also contain an action after a full stop. Keep that separate.
-    statement = re.split(r'(?<=[.!?])\s+(?=[A-Z])', statement, maxsplit=1)[0]
+    statement = re.split(r'(?<=[.!?])\s+(?!(?i:actually|correction|rather)\b)(?=[A-Z])', statement, maxsplit=1)[0]
     topic, value = '', ''
     use = re.search(r'^(?:to\s+)?(?:use|choose|go with)\s+(.+?)\s+(?:for|as)\s+(?:the\s+|our\s+)?(.+)$', statement, re.I)
     if use:

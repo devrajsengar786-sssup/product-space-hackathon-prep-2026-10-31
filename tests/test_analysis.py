@@ -36,6 +36,21 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(result['actions'][0]['due_date'], '2026-11-03')
         self.assertTrue(any('correction' in warning for warning in result['warnings']))
 
+    def test_dictated_month_names_and_ordinal_correction(self):
+        result=analyze_transcript('Maya: Decision: launch date is November eighth, 2026. Actually, November ninth, 2026.\nArjun: I will update the demo by November fourth, 2026.','2026-10-31')
+        self.assertEqual(result['decisions'][0]['value'],'2026-11-09')
+        self.assertEqual(result['actions'][0]['due_date'],'2026-11-04')
+        self.assertTrue(any('correction' in w for w in result['warnings']))
+
+    def test_named_month_day_variants_and_invalid_calendar_date(self):
+        from decisiondesk.analysis import _resolve_date
+        from datetime import date
+        for text in ('December twenty-first, 2026','December twenty first 2026','December 21st, 2026'):
+            self.assertEqual(_resolve_date(text,date(2026,10,31),[]),'2026-12-21')
+        warnings=[]
+        self.assertEqual(_resolve_date('February thirtieth, 2026',date(2026,10,31),warnings),'')
+        self.assertTrue(warnings)
+
     def test_non_date_correction(self):
         result = analyze_transcript('Maya: Decision: database is not MySQL, use PostgreSQL.', '2026-10-31')
         self.assertEqual(result['decisions'][0]['topic'], 'database')

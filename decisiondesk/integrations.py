@@ -9,12 +9,15 @@ import re
 import shutil
 import subprocess
 import tempfile
+from .public_demo import enabled as public_demo_enabled
 
 
 REPOSITORY = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,99}/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\Z")
 
 
 def github_status() -> dict:
+    if public_demo_enabled():
+        return {'available': False, 'message': 'GitHub access is disabled in the public demo.'}
     executable = shutil.which("gh")
     if not executable:
         return {"available": False, "message": "GitHub CLI is not installed. Local review and tracking still work."}
@@ -57,6 +60,8 @@ def publish_action(store, action_id: int, repository: str, confirmed: bool = Fal
     created the issue even when its response was lost. Check the repository and
     reconcile the existing issue with Store.mark_published before retrying.
     """
+    if public_demo_enabled():
+        raise ValueError('GitHub publishing is disabled in the public demo.')
     if confirmed is not True:
         raise ValueError("Confirm the destination and approve posting this action first.")
     repository = str(repository).strip()
